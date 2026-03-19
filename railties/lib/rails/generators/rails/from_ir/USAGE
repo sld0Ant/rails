@@ -1,0 +1,57 @@
+Description:
+    Generates a complete DDD stack (entity, record, migration, repository,
+    service, endpoint) for every resource defined in an IR JSON file.
+
+    IR (Intermediate Representation) is a language-agnostic JSON format
+    that describes API resources — their attributes, types, permitted
+    fields, and CRUD operations. See docs/ddd-ir-schema.md for the
+    full specification.
+
+Usage:
+    rails generate from_ir PATH_TO_IR_JSON
+
+Examples:
+    # Generate from default location
+    rails generate from_ir docs/ir.json
+
+    # Generate from custom path
+    rails generate from_ir api/schema.json
+
+    # Dry run — see what would be generated
+    rails generate from_ir docs/ir.json --pretend
+
+IR File Format:
+    {
+      "$schema": "ddd-ir/1.0",
+      "resources": [
+        {
+          "name": "Post",
+          "plural": "posts",
+          "path": "/posts",
+          "attributes": {
+            "id":         { "type": "integer", "nullable": false, "readonly": true },
+            "title":      { "type": "string",  "nullable": true,  "readonly": false },
+            "body":       { "type": "text",    "nullable": true,  "readonly": false },
+            "published":  { "type": "boolean", "nullable": true,  "readonly": false },
+            "created_at": { "type": "datetime","nullable": false, "readonly": true },
+            "updated_at": { "type": "datetime","nullable": false, "readonly": true }
+          },
+          "permit": ["title", "body", "published"],
+          "operations": [
+            { "action": "index",   "method": "GET",    "path": "/posts" },
+            { "action": "show",    "method": "GET",    "path": "/posts/{id}" },
+            { "action": "create",  "method": "POST",   "path": "/posts" },
+            { "action": "update",  "method": "PATCH",  "path": "/posts/{id}" },
+            { "action": "destroy", "method": "DELETE",  "path": "/posts/{id}" }
+          ],
+          "validators": []
+        }
+      ]
+    }
+
+Workflow:
+    1. Write ir.json by hand, or generate from existing app: rake ddd:ir
+    2. Run: rails generate from_ir docs/ir.json
+    3. Run migrations: rails db:migrate
+    4. Add routes: endpoint PostsEndpoint
+    5. Generate OpenAPI docs: rake ddd:emit[openapi]
