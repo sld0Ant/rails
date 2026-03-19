@@ -53,6 +53,10 @@ module ActionDispatch
               .with_indifferent_access
 
             endpoint_class.new.public_send(action_name, params)
+          rescue ActiveRecord::RecordNotFound
+            [404, { "content-type" => "application/json" }, [{ "error" => "Not found", "status" => 404 }.to_json]]
+          rescue StandardError => e
+            [500, { "content-type" => "application/json" }, [{ "error" => e.message, "status" => 500 }.to_json]]
           end
         end
       end

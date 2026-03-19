@@ -6,9 +6,10 @@ class ApplicationEndpoint
   class_attribute :filterable_fields, default: []
   class_attribute :searchable_fields, default: []
   class_attribute :default_per_page, default: nil
+  class_attribute :cache_config, default: {}
 
   class << self
-    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil)
+    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {})
       self.resource_name = name
       self.service_class = service
       self.permitted_params = permit
@@ -16,24 +17,26 @@ class ApplicationEndpoint
       self.filterable_fields = filter.map(&:to_s)
       self.searchable_fields = search.map(&:to_s)
       self.default_per_page = per_page
+      self.cache_config = cache
     end
   end
 
   def service = @service ||= self.class.service_class.new
 
   def index(params)
+    headers = json_headers
     if collection_configured?
       result = service.list_all(**collection_params(params))
-      [200, json_headers, [result.to_json]]
+      respond(200, result.to_json, :index, headers)
     else
       entities = service.list_all
-      [200, json_headers, [entities.map(&:as_json).to_json]]
+      respond(200, entities.map(&:as_json).to_json, :index, headers)
     end
   end
 
   def show(params)
     entity = service.find(params[:id])
-    [200, json_headers, [entity.as_json.to_json]]
+    respond(200, entity.as_json.to_json, :show)
   end
 
   def create(params)
@@ -66,6 +69,21 @@ class ApplicationEndpoint
   def json_headers = { "content-type" => "application/json" }
   def resource_name = self.class.resource_name
   def permitted_params = self.class.permitted_params
+
+  def respond(status, body, action, headers = json_headers)
+    apply_cache_headers(action, headers)
+    [status, headers, [body]]
+  end
+
+  def apply_cache_headers(action, headers)
+    cfg = self.class.cache_config[action]
+    return unless cfg
+
+    parts = []
+    parts << "public" if cfg[:public]
+    parts << "max-age=#{cfg[:max_age]}" if cfg[:max_age]
+    headers["cache-control"] = parts.join(", ") if parts.any?
+  end
 
   def collection_configured?
     self.class.default_per_page || self.class.sortable_fields.any? || self.class.filterable_fields.any? || self.class.searchable_fields.any?
