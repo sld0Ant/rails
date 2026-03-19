@@ -26,7 +26,8 @@ module Rails
           "boolean"  => ":boolean",
           "date"     => ":date",
           "datetime" => ":datetime",
-          "time"     => ":time"
+          "time"     => ":time",
+          "json"     => ":string"
         }.freeze
 
         def entity_attributes

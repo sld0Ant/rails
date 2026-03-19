@@ -8,9 +8,10 @@ class ApplicationEndpoint
   class_attribute :default_per_page, default: nil
   class_attribute :cache_config, default: {}
   class_attribute :resource_relations, default: {}
+  class_attribute :authorize_config, default: {}
 
   class << self
-    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {}, relations: {})
+    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {}, relations: {}, authorize: {})
       self.resource_name = name
       self.service_class = service
       self.permitted_params = permit
@@ -20,6 +21,7 @@ class ApplicationEndpoint
       self.default_per_page = per_page
       self.cache_config = cache
       self.resource_relations = relations
+      self.authorize_config = authorize
     end
   end
 

@@ -51,8 +51,25 @@ module ActionDispatch
           end
         end
 
+        def check_authorization(endpoint_class, action_name, env)
+          config = endpoint_class.respond_to?(:authorize_config) ? endpoint_class.authorize_config : {}
+          return nil if config.empty?
+
+          allowed = config[action_name]
+          return nil unless allowed
+          return nil if allowed.include?("*")
+
+          role = env["HTTP_X_USER_ROLE"].to_s
+          return nil if allowed.map(&:to_s).include?(role)
+
+          [403, { "content-type" => "application/json" }, [{ "error" => "Forbidden", "status" => 403 }.to_json]]
+        end
+
         def endpoint_dispatch(endpoint_class, action_name)
           lambda do |env|
+            forbidden = check_authorization(endpoint_class, action_name, env)
+            return forbidden if forbidden
+
             request = ActionDispatch::Request.new(env)
             path_params = env["action_dispatch.request.path_parameters"] || {}
             request_params = begin

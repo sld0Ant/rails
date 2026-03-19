@@ -5,10 +5,16 @@ class ApplicationEntity
 
   class_attribute :transitions_config, default: {}
   class_attribute :state_field, default: nil
+  class_attribute :aggregate_root, default: false
+  class_attribute :aggregate_parent, default: nil
 
   def self.transitions(field, **config)
     self.state_field = field.to_s
     self.transitions_config = config
+  end
+
+  def self.aggregate(parent_name)
+    self.aggregate_parent = parent_name.to_s
   end
 
   def persisted? = id.present?

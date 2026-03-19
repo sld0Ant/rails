@@ -45,7 +45,10 @@ module DDD
         "relations" => build_relations(record_class, entity_name),
         "collection" => build_collection(endpoint_class),
         "links" => build_links(plural, build_relations(record_class, entity_name)),
-        "states" => build_states(entity_class)
+        "states" => build_states(entity_class),
+        "aggregate_root" => (entity_class.aggregate_root if entity_class.respond_to?(:aggregate_root) && entity_class.aggregate_root),
+        "aggregate" => (entity_class.aggregate_parent if entity_class.respond_to?(:aggregate_parent) && entity_class.aggregate_parent),
+        "authorization" => build_authorization(endpoint_class)
       }
     rescue NameError => e
       warn "SchemaRegistry: skipping #{path} — #{e.message}"
@@ -79,6 +82,12 @@ module DDD
           "fields" => validator.attributes.map(&:to_s)
         }
       end
+    end
+
+    def build_authorization(endpoint_class)
+      return {} unless endpoint_class.respond_to?(:authorize_config) && endpoint_class.authorize_config.any?
+
+      endpoint_class.authorize_config.transform_keys(&:to_s).transform_values { |v| v.map(&:to_s) }
     end
 
     def build_states(entity_class)
