@@ -40,9 +40,11 @@ module Rails
       end
 
       def generate_resources
-        @ir_data["resources"].each do |resource|
+        sorted = topological_sort(@ir_data["resources"])
+
+        sorted.each do |resource|
           name = resource["name"]
-          attrs = build_attribute_args(resource["attributes"])
+          attrs = build_attribute_args(resource)
 
           say_status "scaffold", "#{name} #{attrs.join(' ')}", :cyan
 
@@ -61,20 +63,55 @@ module Rails
         say "  1. Run migrations:  rails db:migrate"
         say "  2. Add routes to config/routes.rb:"
         @ir_data["resources"].each do |r|
-          say "       endpoint #{r['name'].pluralize}Endpoint"
+          if r["parent"]
+            say "       # #{r['name']} is nested under #{r['parent']}"
+          else
+            say "       endpoint #{r['plural'].camelize}Endpoint"
+          end
         end
         say "  3. Start server:    rails server"
       end
 
       private
 
-      def build_attribute_args(attributes)
-        attributes.filter_map do |name, info|
+      def build_attribute_args(resource)
+        attrs = []
+
+        (resource["relations"] || {}).each do |name, rel|
+          attrs << "#{name}:references" if rel["kind"] == "belongs_to"
+        end
+
+        (resource["attributes"] || {}).each do |name, info|
           next if READONLY_ATTRIBUTES.include?(name)
+          next if name.end_with?("_id")
 
           type = info["type"] || "string"
-          "#{name}:#{type}"
+          attrs << "#{name}:#{type}"
         end
+
+        attrs
+      end
+
+      def topological_sort(resources)
+        by_name = resources.each_with_object({}) { |r, h| h[r["name"]] = r }
+        visited = {}
+        sorted = []
+
+        visit = ->(name) {
+          return if visited[name]
+          visited[name] = true
+          resource = by_name[name]
+          return unless resource
+
+          (resource["relations"] || {}).each do |_, rel|
+            visit.call(rel["resource"]) if rel["kind"] == "belongs_to"
+          end
+
+          sorted << resource
+        }
+
+        resources.each { |r| visit.call(r["name"]) }
+        sorted
       end
     end
   end

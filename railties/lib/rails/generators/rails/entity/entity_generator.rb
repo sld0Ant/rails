@@ -7,7 +7,6 @@ module Rails
     class EntityGenerator < NamedBase # :nodoc:
       source_root File.expand_path("templates", __dir__)
 
-
       argument :attributes, type: :array, default: [], banner: "field[:type] field[:type]"
 
       check_class_collision
@@ -31,10 +30,16 @@ module Rails
         }.freeze
 
         def entity_attributes
-          attributes.map do |attr|
+          regular = attributes.reject(&:reference?).map do |attr|
             type = ACTIVE_MODEL_TYPES[attr.type.to_s] || ":string"
             { name: attr.name, type: type }
           end
+
+          fk = attributes.select(&:reference?).map do |attr|
+            { name: "#{attr.name}_id", type: ":integer" }
+          end
+
+          fk + regular
         end
     end
   end

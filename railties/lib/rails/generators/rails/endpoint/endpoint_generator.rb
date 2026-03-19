@@ -26,7 +26,10 @@ module Rails
         end
 
         def permitted_fields
-          attributes.map { |attr| ":#{attr.name}" }.join(", ")
+          fields = attributes.map do |attr|
+            attr.reference? ? ":#{attr.name}_id" : ":#{attr.name}"
+          end
+          fields.join(", ")
         end
     end
   end

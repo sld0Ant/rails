@@ -4,14 +4,16 @@ require "json"
 
 module DDD
   module IR
-    VERSION = "1.0"
+    VERSION = "1.1"
 
     READONLY_ATTRIBUTES = %w[id created_at updated_at].freeze
 
     RUBY_TYPES = %w[
       integer string float decimal boolean
-      date datetime time text
+      date datetime time text references
     ].freeze
+
+    RELATION_KINDS = %w[belongs_to has_many].freeze
 
     def self.to_json(resources)
       JSON.pretty_generate(
@@ -46,6 +48,28 @@ module DDD
 
     def self.normalize_resource(resource)
       resource.transform_keys(&:to_s)
+    end
+
+    def self.topological_sort(resources)
+      by_name = resources.each_with_object({}) { |r, h| h[r["name"]] = r }
+      visited = {}
+      sorted = []
+
+      visit = ->(name) {
+        return if visited[name]
+        visited[name] = true
+        resource = by_name[name]
+        return unless resource
+
+        (resource["relations"] || {}).each do |_, rel|
+          visit.call(rel["resource"]) if rel["kind"] == "belongs_to"
+        end
+
+        sorted << resource
+      }
+
+      resources.each { |r| visit.call(r["name"]) }
+      sorted
     end
 
     class InvalidIRError < StandardError; end

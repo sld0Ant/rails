@@ -41,7 +41,8 @@ module DDD
         "attributes" => build_attributes(entity_class),
         "permit" => endpoint_class.permitted_params.map(&:to_s),
         "operations" => build_operations(plural),
-        "validators" => build_validators(entity_class)
+        "validators" => build_validators(entity_class),
+        "relations" => build_relations(record_class, entity_name)
       }
     rescue NameError => e
       warn "SchemaRegistry: skipping #{path} — #{e.message}"
@@ -75,6 +76,38 @@ module DDD
           "fields" => validator.attributes.map(&:to_s)
         }
       end
+    end
+
+    def build_relations(record_class, entity_name)
+      relations = {}
+
+      record_class.reflect_on_all_associations.each do |assoc|
+        target_name = assoc.class_name.delete_suffix("Record")
+
+        case assoc.macro
+        when :belongs_to
+          relations[assoc.name.to_s] = {
+            "kind" => "belongs_to",
+            "resource" => target_name,
+            "required" => assoc.options[:optional] != true
+          }
+        when :has_many
+          if assoc.options[:through]
+            relations[assoc.name.to_s] = {
+              "kind" => "has_many",
+              "resource" => target_name,
+              "through" => assoc.options[:through].to_s.camelize.singularize
+            }
+          else
+            relations[assoc.name.to_s] = {
+              "kind" => "has_many",
+              "resource" => target_name
+            }
+          end
+        end
+      end
+
+      relations
     end
   end
 end

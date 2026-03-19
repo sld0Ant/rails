@@ -2,7 +2,7 @@
 class <%= class_name %>Record < <%= parent_class_name.classify %>
   self.table_name = "<%= table_name %>"
 <% attributes.select(&:reference?).each do |attribute| -%>
-  belongs_to :<%= attribute.name %><%= ", polymorphic: true" if attribute.polymorphic? %>
+  belongs_to :<%= attribute.name %>, class_name: "<%= attribute.name.camelize %>Record"<%= ", polymorphic: true" if attribute.polymorphic? %>
 <% end -%>
 <% attributes.select(&:rich_text?).each do |attribute| -%>
   has_rich_text :<%= attribute.name %>
