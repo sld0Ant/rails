@@ -69,8 +69,21 @@ module DDD
         collection_path = "/#{plural}"
         member_path = "/#{plural}/{id}"
 
+        index_op = operation("List all #{plural}", "200", array_ref(name))
+        coll = resource["collection"] || {}
+        if coll.any?
+          index_params = [
+            { "name" => "page", "in" => "query", "schema" => { "type" => "integer", "default" => 1 } },
+            { "name" => "per_page", "in" => "query", "schema" => { "type" => "integer", "default" => coll["per_page"] || 25 } }
+          ]
+          index_params << { "name" => "sort", "in" => "query", "schema" => { "type" => "string", "enum" => coll["sort"] } } if coll["sort"]
+          (coll["filter"] || []).each { |f| index_params << { "name" => "filter[#{f}]", "in" => "query", "schema" => { "type" => "string" } } }
+          index_params << { "name" => "search", "in" => "query", "schema" => { "type" => "string" } } if coll["search"]
+          index_op["parameters"] = index_params
+        end
+
         doc["paths"][collection_path] = {
-          "get" => operation("List all #{plural}", "200", array_ref(name)),
+          "get" => index_op,
           "post" => operation("Create #{name}", "201", ref(name), input_body(name))
         }
 

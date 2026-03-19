@@ -26,10 +26,15 @@ module Rails
         end
 
         def permitted_fields
-          fields = attributes.map do |attr|
-            attr.reference? ? ":#{attr.name}_id" : ":#{attr.name}"
-          end
-          fields.join(", ")
+          attributes.map { |a| a.reference? ? ":#{a.name}_id" : ":#{a.name}" }.join(", ")
+        end
+
+        def sortable_fields
+          ([":created_at"] + attributes.reject(&:reference?).map { |a| ":#{a.name}" }).join(", ")
+        end
+
+        def filterable_fields
+          attributes.select(&:reference?).map { |a| ":#{a.name}_id" }.join(", ")
         end
     end
   end

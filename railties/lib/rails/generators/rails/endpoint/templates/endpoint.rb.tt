@@ -2,6 +2,9 @@
 class <%= class_name %>Endpoint < ApplicationEndpoint
   resource :<%= singular_resource_name %>,
     service: <%= singular_resource_name.camelize %>Service,
-    permit: [<%= permitted_fields %>]
+    permit: [<%= permitted_fields %>],
+    sort: [<%= sortable_fields %>],
+    filter: [<%= filterable_fields %>],
+    per_page: 25
 end
 <% end -%>

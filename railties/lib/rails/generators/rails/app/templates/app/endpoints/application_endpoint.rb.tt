@@ -2,20 +2,33 @@ class ApplicationEndpoint
   class_attribute :resource_name
   class_attribute :service_class
   class_attribute :permitted_params
+  class_attribute :sortable_fields, default: []
+  class_attribute :filterable_fields, default: []
+  class_attribute :searchable_fields, default: []
+  class_attribute :default_per_page, default: nil
 
   class << self
-    def resource(name, service:, permit: [])
+    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil)
       self.resource_name = name
       self.service_class = service
       self.permitted_params = permit
+      self.sortable_fields = sort.map(&:to_s)
+      self.filterable_fields = filter.map(&:to_s)
+      self.searchable_fields = search.map(&:to_s)
+      self.default_per_page = per_page
     end
   end
 
   def service = @service ||= self.class.service_class.new
 
   def index(params)
-    entities = service.list_all
-    [200, json_headers, [entities.map(&:as_json).to_json]]
+    if collection_configured?
+      result = service.list_all(**collection_params(params))
+      [200, json_headers, [result.to_json]]
+    else
+      entities = service.list_all
+      [200, json_headers, [entities.map(&:as_json).to_json]]
+    end
   end
 
   def show(params)
@@ -53,4 +66,26 @@ class ApplicationEndpoint
   def json_headers = { "content-type" => "application/json" }
   def resource_name = self.class.resource_name
   def permitted_params = self.class.permitted_params
+
+  def collection_configured?
+    self.class.default_per_page || self.class.sortable_fields.any? || self.class.filterable_fields.any? || self.class.searchable_fields.any?
+  end
+
+  def collection_params(params)
+    opts = {}
+    opts[:page] = params[:page] if params[:page]
+    opts[:per] = params[:per_page] || self.class.default_per_page
+    opts[:sort] = params[:sort] if params[:sort].present? && self.class.sortable_fields.include?(params[:sort].to_s)
+
+    if params[:filter].is_a?(Hash)
+      opts[:filter] = params[:filter].slice(*self.class.filterable_fields).to_h
+    end
+
+    if params[:search].present? && self.class.searchable_fields.any?
+      opts[:search] = params[:search]
+      opts[:search_fields] = self.class.searchable_fields
+    end
+
+    opts.compact
+  end
 end

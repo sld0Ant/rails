@@ -42,7 +42,8 @@ module DDD
         "permit" => endpoint_class.permitted_params.map(&:to_s),
         "operations" => build_operations(plural),
         "validators" => build_validators(entity_class),
-        "relations" => build_relations(record_class, entity_name)
+        "relations" => build_relations(record_class, entity_name),
+        "collection" => build_collection(endpoint_class)
       }
     rescue NameError => e
       warn "SchemaRegistry: skipping #{path} — #{e.message}"
@@ -76,6 +77,15 @@ module DDD
           "fields" => validator.attributes.map(&:to_s)
         }
       end
+    end
+
+    def build_collection(endpoint_class)
+      coll = {}
+      coll["sort"] = endpoint_class.sortable_fields if endpoint_class.respond_to?(:sortable_fields) && endpoint_class.sortable_fields.any?
+      coll["filter"] = endpoint_class.filterable_fields if endpoint_class.respond_to?(:filterable_fields) && endpoint_class.filterable_fields.any?
+      coll["search"] = endpoint_class.searchable_fields if endpoint_class.respond_to?(:searchable_fields) && endpoint_class.searchable_fields.any?
+      coll["per_page"] = endpoint_class.default_per_page if endpoint_class.respond_to?(:default_per_page) && endpoint_class.default_per_page
+      coll
     end
 
     def build_relations(record_class, entity_name)

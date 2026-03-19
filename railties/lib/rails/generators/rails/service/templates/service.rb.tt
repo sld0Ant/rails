@@ -1,6 +1,9 @@
 <% module_namespacing do -%>
 class <%= class_name %>Service < ApplicationService
-  def list_all          = repository.all
+  def list_all(**params)
+    params.any? ? repository.paginate(**params) : repository.all
+  end
+
   def find(id)          = repository.find(id)
   def create(attributes) = repository.create(attributes)
   def update(id, attributes) = repository.update(id, attributes)

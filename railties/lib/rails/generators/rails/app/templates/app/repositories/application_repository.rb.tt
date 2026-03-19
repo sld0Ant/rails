@@ -5,6 +5,24 @@ class ApplicationRepository
   def all = record_class.all.map { |r| to_entity(r) }
   def find(id) = to_entity(record_class.find(id))
 
+  def paginate(page: 1, per: 25, sort: nil, filter: {}, search: nil, search_fields: [])
+    scope = record_class.all
+
+    filter.each { |k, v| scope = scope.where(k => v) } if filter.any?
+
+    if search.present? && search_fields.any?
+      clauses = search_fields.map { |f| "#{f} LIKE ?" }.join(" OR ")
+      scope = scope.where(clauses, *search_fields.map { "%#{search}%" })
+    end
+
+    scope = scope.order(sort) if sort.present?
+
+    total = scope.count
+    records = scope.offset(([page.to_i, 1].max - 1) * per.to_i).limit(per.to_i)
+
+    { data: records.map { |r| to_entity(r) }, meta: { page: page.to_i, per: per.to_i, total: total } }
+  end
+
   def create(attributes)
     entity = entity_class.new(**attributes)
     return entity unless entity.valid?
