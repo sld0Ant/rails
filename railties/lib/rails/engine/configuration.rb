@@ -78,10 +78,15 @@ module Rails
                                            glob: "{*,*/concerns}",
                                            exclude: ["assets", javascript_path]
           paths.add "app/assets",          glob: "*"
+          paths.add "app/endpoints",       eager_load: true
+          paths.add "app/actions",         eager_load: true
+          paths.add "app/entities",        eager_load: true
+          paths.add "app/services",        eager_load: true
+          paths.add "app/repositories",    eager_load: true
+          paths.add "app/records",         eager_load: true
           paths.add "app/controllers",     eager_load: true
           paths.add "app/channels",        eager_load: true
           paths.add "app/helpers",         eager_load: true
-          paths.add "app/models",          eager_load: true
           paths.add "app/mailers",         eager_load: true
           paths.add "app/views"
 

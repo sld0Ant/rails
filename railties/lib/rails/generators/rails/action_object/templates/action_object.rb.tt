@@ -1,0 +1,11 @@
+<% module_namespacing do -%>
+class <%= class_name %> < ApplicationAction
+  private
+
+  def handle(req, res)
+    res.status = 200
+    res.content_type = "application/json"
+    res.body = [{ status: "ok" }.to_json]
+  end
+end
+<% end -%>

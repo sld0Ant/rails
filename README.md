@@ -1,3 +1,45 @@
+# Rails DDD
+
+> A Domain-Driven Design fork of Ruby on Rails, inspired by the ideas of **Max Efimov** and the **Blue Book** by Eric Evans (*Domain-Driven Design: Tackling Complexity in the Heart of Software*).
+
+This fork replaces the classic MVC architecture with a four-layer DDD structure: **UI → Application → Domain → Infrastructure**. ActiveRecord models are hidden behind the Repository pattern, controllers are replaced by declarative Endpoints and Action Objects (inspired by [Hanami](https://hanamirb.org)), and the View layer is removed entirely in favor of API-only JSON responses.
+
+```
+Rails MVC                          Rails DDD
+app/                               app/
+  controllers/ → HTTP + logic        endpoints/    → Declarative CRUD (5 lines)
+  models/      → domain + DB         actions/      → Custom operations (1 class = 1 action)
+  views/       → HTML                entities/     → Domain objects (PORO, no DB)
+  helpers/                           services/     → Business logic orchestration
+                                     repositories/ → Persistence abstraction
+                                     records/      → ActiveRecord (hidden infrastructure)
+```
+
+### Quick start
+
+```bash
+rails generate scaffold Post title:string body:text published:boolean
+```
+
+Generates a full DDD stack: Entity + Record + Repository + Service + Endpoint + Migration.
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  endpoint PostsEndpoint
+end
+```
+
+One line → 5 RESTful JSON routes.
+
+See [plan.md](plan.md) for the full architecture design and comparison with Rails MVC and Hanami 2.x.
+
+---
+
+*Based on Ruby on Rails by DHH and the Rails core team. Original README follows.*
+
+---
+
 # Welcome to Rails
 
 ## What's Rails?

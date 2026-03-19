@@ -30,12 +30,12 @@ module ActiveRecord
 
       def create_model_file
         generate_abstract_class if database && !custom_parent?
-        template "model.rb", File.join("app/models", class_path, "#{file_name}.rb")
+        template "model.rb", File.join("app/records", class_path, "#{file_name}_record.rb")
       end
 
       def create_module_file
         return if regular_class_path.empty?
-        template "module.rb", File.join("app/models", "#{class_path.join('/')}.rb") if behavior == :invoke
+        template "module.rb", File.join("app/records", "#{class_path.join('/')}.rb") if behavior == :invoke
       end
 
       hook_for :test_framework
@@ -64,7 +64,7 @@ module ActiveRecord
         end
 
         def generate_abstract_class
-          path = File.join("app/models", "#{database.underscore}_record.rb")
+          path = File.join("app/records", "#{database.underscore}_record.rb")
           return if File.exist?(path)
 
           template "abstract_base_class.rb", path

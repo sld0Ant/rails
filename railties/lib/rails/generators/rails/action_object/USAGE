@@ -1,0 +1,8 @@
+Description:
+    Generates a custom action object with handle(req, res) contract.
+    Use namespaced names for nested actions.
+
+Example:
+    `bin/rails generate action_object Posts::Publish`
+
+    Action:  app/actions/posts/publish.rb

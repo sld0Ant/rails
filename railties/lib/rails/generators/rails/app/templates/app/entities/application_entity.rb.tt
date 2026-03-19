@@ -1,0 +1,7 @@
+class ApplicationEntity
+  include ActiveModel::API
+  include ActiveModel::Attributes
+  include ActiveModel::Serializers::JSON
+
+  def persisted? = id.present?
+end

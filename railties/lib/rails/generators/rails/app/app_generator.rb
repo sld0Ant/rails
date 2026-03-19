@@ -104,8 +104,12 @@ module Rails
 
       empty_directory_with_keep_file "app/assets/images"
 
-      keep_file  "app/controllers/concerns"
-      keep_file  "app/models/concerns"
+      keep_file  "app/endpoints"
+      keep_file  "app/actions"
+      keep_file  "app/entities"
+      keep_file  "app/services"
+      keep_file  "app/repositories"
+      keep_file  "app/records"
     end
 
     def bin
@@ -541,7 +545,7 @@ module Rails
 
       def delete_application_record_skipping_active_record
         if options[:skip_active_record]
-          remove_file "app/models/application_record.rb"
+          remove_file "app/records/application_record.rb"
         end
       end
 
