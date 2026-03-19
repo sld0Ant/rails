@@ -1,0 +1,8 @@
+Description:
+    Generates a new repository for the given entity.
+    Wraps ActiveRecord behind the Repository pattern.
+
+Example:
+    `bin/rails generate repository Post`
+
+    Repository:  app/repositories/post_repository.rb

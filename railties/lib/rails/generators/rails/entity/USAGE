@@ -1,0 +1,8 @@
+Description:
+    Generates a new domain entity (PORO with ActiveModel).
+    Pass the entity name and optional attributes.
+
+Example:
+    `bin/rails generate entity Post title:string body:text`
+
+    Entity:  app/entities/post.rb

@@ -1,0 +1,14 @@
+class ApplicationAction
+  def call(env)
+    req = ActionDispatch::Request.new(env)
+    res = ActionDispatch::Response.new
+    handle(req, res)
+    res.to_a
+  end
+
+  private
+
+  def handle(req, res)
+    raise NotImplementedError
+  end
+end

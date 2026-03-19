@@ -8,6 +8,7 @@ require "active_support/core_ext/array/extract_options"
 require "active_support/core_ext/regexp"
 require "action_dispatch/routing/redirection"
 require "action_dispatch/routing/endpoint"
+require "action_dispatch/routing/mapper/endpoint_resources"
 
 module ActionDispatch
   module Routing
@@ -2541,6 +2542,7 @@ module ActionDispatch
       include Concerns
       include Resources
       include CustomUrls
+      include EndpointResources
     end
   end
 end

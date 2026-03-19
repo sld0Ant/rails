@@ -1,0 +1,8 @@
+Description:
+    Generates a declarative CRUD endpoint.
+    Pass the plural resource name and optional attribute fields.
+
+Example:
+    `bin/rails generate endpoint Posts title:string body:text`
+
+    Endpoint:  app/endpoints/posts_endpoint.rb

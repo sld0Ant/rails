@@ -1,0 +1,8 @@
+Description:
+    Generates a new application service with CRUD methods
+    delegating to the corresponding repository.
+
+Example:
+    `bin/rails generate service Post`
+
+    Service:  app/services/post_service.rb

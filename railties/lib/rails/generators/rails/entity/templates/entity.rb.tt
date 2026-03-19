@@ -1,0 +1,10 @@
+<% module_namespacing do -%>
+class <%= class_name %> < ApplicationEntity
+  attribute :id, :integer
+<% entity_attributes.each do |attr| -%>
+  attribute :<%= attr[:name] %>, <%= attr[:type] %>
+<% end -%>
+  attribute :created_at, :datetime
+  attribute :updated_at, :datetime
+end
+<% end -%>

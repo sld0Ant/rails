@@ -1,0 +1,7 @@
+<% module_namespacing do -%>
+class <%= class_name %>Endpoint < ApplicationEndpoint
+  resource :<%= singular_resource_name %>,
+    service: <%= singular_resource_name.camelize %>Service,
+    permit: [<%= permitted_fields %>]
+end
+<% end -%>

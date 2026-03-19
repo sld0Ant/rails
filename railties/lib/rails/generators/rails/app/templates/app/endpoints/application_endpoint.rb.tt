@@ -1,0 +1,56 @@
+class ApplicationEndpoint
+  class_attribute :resource_name
+  class_attribute :service_class
+  class_attribute :permitted_params
+
+  class << self
+    def resource(name, service:, permit: [])
+      self.resource_name = name
+      self.service_class = service
+      self.permitted_params = permit
+    end
+  end
+
+  def service = @service ||= self.class.service_class.new
+
+  def index(params)
+    entities = service.list_all
+    [200, json_headers, [entities.map(&:as_json).to_json]]
+  end
+
+  def show(params)
+    entity = service.find(params[:id])
+    [200, json_headers, [entity.as_json.to_json]]
+  end
+
+  def create(params)
+    permitted = params[resource_name]&.slice(*permitted_params) || {}
+    entity = service.create(permitted)
+    if entity.errors.empty?
+      [201, json_headers, [entity.as_json.to_json]]
+    else
+      [422, json_headers, [{ errors: entity.errors.as_json }.to_json]]
+    end
+  end
+
+  def update(params)
+    permitted = params[resource_name]&.slice(*permitted_params) || {}
+    entity = service.update(params[:id], permitted)
+    if entity.errors.empty?
+      [200, json_headers, [entity.as_json.to_json]]
+    else
+      [422, json_headers, [{ errors: entity.errors.as_json }.to_json]]
+    end
+  end
+
+  def destroy(params)
+    service.destroy(params[:id])
+    [204, {}, []]
+  end
+
+  private
+
+  def json_headers = { "content-type" => "application/json" }
+  def resource_name = self.class.resource_name
+  def permitted_params = self.class.permitted_params
+end

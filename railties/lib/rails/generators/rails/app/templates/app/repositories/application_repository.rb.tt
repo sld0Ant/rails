@@ -1,0 +1,43 @@
+class ApplicationRepository
+  class_attribute :record_class
+  class_attribute :entity_class
+
+  def all = record_class.all.map { |r| to_entity(r) }
+  def find(id) = to_entity(record_class.find(id))
+
+  def create(attributes)
+    entity = entity_class.new(**attributes)
+    return entity unless entity.valid?
+
+    record = record_class.create!(attributes)
+    to_entity(record)
+  rescue ActiveRecord::RecordInvalid => e
+    map_record_errors(entity, e.record)
+    entity
+  end
+
+  def update(id, attributes)
+    entity = entity_class.new(id: id, **attributes)
+    return entity unless entity.valid?
+
+    record = record_class.find(id)
+    record.update!(attributes)
+    to_entity(record)
+  rescue ActiveRecord::RecordInvalid => e
+    map_record_errors(entity, e.record)
+    entity
+  end
+
+  def destroy(id) = record_class.find(id).destroy!
+
+  private
+
+  def to_entity(record)
+    attrs = record.attributes.symbolize_keys.slice(*entity_class.attribute_names.map(&:to_sym))
+    entity_class.new(**attrs)
+  end
+
+  def map_record_errors(entity, record)
+    record.errors.each { |error| entity.errors.add(error.attribute, error.type, message: error.message) }
+  end
+end
