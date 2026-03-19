@@ -36,6 +36,12 @@ module Rails
         def filterable_fields
           attributes.select(&:reference?).map { |a| ":#{a.name}_id" }.join(", ")
         end
+
+        def relation_config
+          attributes.select(&:reference?).map { |a|
+            " #{a.name}: { kind: :belongs_to, resource: \"#{a.name.camelize}\" }"
+          }.join(",")
+        end
     end
   end
 end

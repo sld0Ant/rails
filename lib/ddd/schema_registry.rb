@@ -43,7 +43,8 @@ module DDD
         "operations" => build_operations(plural),
         "validators" => build_validators(entity_class),
         "relations" => build_relations(record_class, entity_name),
-        "collection" => build_collection(endpoint_class)
+        "collection" => build_collection(endpoint_class),
+        "links" => build_links(plural, build_relations(record_class, entity_name))
       }
     rescue NameError => e
       warn "SchemaRegistry: skipping #{path} — #{e.message}"
@@ -77,6 +78,22 @@ module DDD
           "fields" => validator.attributes.map(&:to_s)
         }
       end
+    end
+
+    def build_links(plural, relations)
+      links = { "self" => "/#{plural}/{id}" }
+
+      relations.each do |name, info|
+        case info["kind"]
+        when "belongs_to"
+          related_plural = info["resource"].downcase.pluralize
+          links[name] = "/#{related_plural}/{#{name}_id}"
+        when "has_many"
+          links[name] = "/#{plural}/{id}/#{name}"
+        end
+      end
+
+      links
     end
 
     def build_collection(endpoint_class)

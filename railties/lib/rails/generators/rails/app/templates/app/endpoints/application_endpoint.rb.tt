@@ -7,9 +7,10 @@ class ApplicationEndpoint
   class_attribute :searchable_fields, default: []
   class_attribute :default_per_page, default: nil
   class_attribute :cache_config, default: {}
+  class_attribute :resource_relations, default: {}
 
   class << self
-    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {})
+    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {}, relations: {})
       self.resource_name = name
       self.service_class = service
       self.permitted_params = permit
@@ -18,32 +19,33 @@ class ApplicationEndpoint
       self.searchable_fields = search.map(&:to_s)
       self.default_per_page = per_page
       self.cache_config = cache
+      self.resource_relations = relations
     end
   end
 
   def service = @service ||= self.class.service_class.new
 
   def index(params)
-    headers = json_headers
     if collection_configured?
       result = service.list_all(**collection_params(params))
-      respond(200, result.to_json, :index, headers)
+      result[:data] = result[:data].map { |e| with_links(e.as_json) }
+      respond(200, result.to_json, :index)
     else
       entities = service.list_all
-      respond(200, entities.map(&:as_json).to_json, :index, headers)
+      respond(200, entities.map { |e| with_links(e.as_json) }.to_json, :index)
     end
   end
 
   def show(params)
     entity = service.find(params[:id])
-    respond(200, entity.as_json.to_json, :show)
+    respond(200, with_links(entity.as_json).to_json, :show)
   end
 
   def create(params)
     permitted = params[resource_name]&.slice(*permitted_params) || {}
     entity = service.create(permitted)
     if entity.errors.empty?
-      [201, json_headers, [entity.as_json.to_json]]
+      [201, json_headers, [with_links(entity.as_json).to_json]]
     else
       [422, json_headers, [{ errors: entity.errors.as_json }.to_json]]
     end
@@ -53,7 +55,7 @@ class ApplicationEndpoint
     permitted = params[resource_name]&.slice(*permitted_params) || {}
     entity = service.update(params[:id], permitted)
     if entity.errors.empty?
-      [200, json_headers, [entity.as_json.to_json]]
+      [200, json_headers, [with_links(entity.as_json).to_json]]
     else
       [422, json_headers, [{ errors: entity.errors.as_json }.to_json]]
     end
@@ -69,10 +71,28 @@ class ApplicationEndpoint
   def json_headers = { "content-type" => "application/json" }
   def resource_name = self.class.resource_name
   def permitted_params = self.class.permitted_params
+  def plural_name = self.class.resource_name.to_s.pluralize
 
   def respond(status, body, action, headers = json_headers)
     apply_cache_headers(action, headers)
     [status, headers, [body]]
+  end
+
+  def with_links(entity_hash)
+    links = { "self" => "/#{plural_name}/#{entity_hash['id']}" }
+
+    self.class.resource_relations.each do |rel_name, rel_info|
+      case rel_info[:kind].to_s
+      when "belongs_to"
+        fk = "#{rel_name}_id"
+        fk_val = entity_hash[fk]
+        links[rel_name.to_s] = "/#{rel_info[:resource].to_s.downcase.pluralize}/#{fk_val}" if fk_val
+      when "has_many"
+        links[rel_name.to_s] = "/#{plural_name}/#{entity_hash['id']}/#{rel_name}"
+      end
+    end
+
+    entity_hash.merge("_links" => links)
   end
 
   def apply_cache_headers(action, headers)

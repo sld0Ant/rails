@@ -5,6 +5,7 @@ class <%= class_name %>Endpoint < ApplicationEndpoint
     permit: [<%= permitted_fields %>],
     sort: [<%= sortable_fields %>],
     filter: [<%= filterable_fields %>],
-    per_page: 25
+    per_page: 25,
+    relations: {<%= relation_config %>}
 end
 <% end -%>
