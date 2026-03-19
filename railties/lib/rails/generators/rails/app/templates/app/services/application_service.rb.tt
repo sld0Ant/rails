@@ -2,4 +2,12 @@ class ApplicationService
   private
 
   def repository = raise NotImplementedError
+
+  def perform_transition(id, transition_name)
+    entity = repository.find(id)
+    entity.transition!(transition_name)
+    return entity if entity.errors.any?
+
+    repository.update(id, { entity.class.state_field => entity.send(entity.class.state_field) })
+  end
 end

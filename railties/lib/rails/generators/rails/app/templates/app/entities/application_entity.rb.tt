@@ -3,5 +3,34 @@ class ApplicationEntity
   include ActiveModel::Attributes
   include ActiveModel::Serializers::JSON
 
+  class_attribute :transitions_config, default: {}
+  class_attribute :state_field, default: nil
+
+  def self.transitions(field, **config)
+    self.state_field = field.to_s
+    self.transitions_config = config
+  end
+
   def persisted? = id.present?
+
+  def can_transition?(name)
+    cfg = self.class.transitions_config[name.to_sym]
+    return false unless cfg
+
+    current = send(self.class.state_field)
+    current.to_s == cfg[:from].to_s
+  end
+
+  def transition!(name)
+    cfg = self.class.transitions_config[name.to_sym]
+    raise "Unknown transition: #{name}" unless cfg
+
+    unless can_transition?(name)
+      errors.add(self.class.state_field, "cannot transition '#{name}' from '#{send(self.class.state_field)}'")
+      return self
+    end
+
+    send("#{self.class.state_field}=", cfg[:to])
+    self
+  end
 end

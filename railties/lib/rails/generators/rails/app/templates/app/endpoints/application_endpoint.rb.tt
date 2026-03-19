@@ -66,6 +66,15 @@ class ApplicationEndpoint
     [204, {}, []]
   end
 
+  def transition(params, transition_name)
+    entity = service.perform_transition(params[:id], transition_name.to_sym)
+    if entity.errors.empty?
+      [200, json_headers, [with_links(entity.as_json).to_json]]
+    else
+      [422, json_headers, [{ errors: entity.errors.as_json }.to_json]]
+    end
+  end
+
   private
 
   def json_headers = { "content-type" => "application/json" }
@@ -76,6 +85,10 @@ class ApplicationEndpoint
   def respond(status, body, action, headers = json_headers)
     apply_cache_headers(action, headers)
     [status, headers, [body]]
+  end
+
+  def entity_class
+    @entity_class ||= self.class.resource_name.to_s.camelize.constantize
   end
 
   def with_links(entity_hash)
@@ -89,6 +102,15 @@ class ApplicationEndpoint
         links[rel_name.to_s] = "/#{rel_info[:resource].to_s.downcase.pluralize}/#{fk_val}" if fk_val
       when "has_many"
         links[rel_name.to_s] = "/#{plural_name}/#{entity_hash['id']}/#{rel_name}"
+      end
+    end
+
+    if entity_class.respond_to?(:transitions_config) && entity_class.transitions_config.any?
+      state_val = entity_hash[entity_class.state_field]
+      entity_class.transitions_config.each do |t_name, t_cfg|
+        if state_val.to_s == t_cfg[:from].to_s
+          links[t_name.to_s] = { "href" => "/#{plural_name}/#{entity_hash['id']}/#{t_name}", "method" => "POST" }
+        end
       end
     end
 

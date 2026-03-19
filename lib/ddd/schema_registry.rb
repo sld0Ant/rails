@@ -44,7 +44,8 @@ module DDD
         "validators" => build_validators(entity_class),
         "relations" => build_relations(record_class, entity_name),
         "collection" => build_collection(endpoint_class),
-        "links" => build_links(plural, build_relations(record_class, entity_name))
+        "links" => build_links(plural, build_relations(record_class, entity_name)),
+        "states" => build_states(entity_class)
       }
     rescue NameError => e
       warn "SchemaRegistry: skipping #{path} — #{e.message}"
@@ -78,6 +79,17 @@ module DDD
           "fields" => validator.attributes.map(&:to_s)
         }
       end
+    end
+
+    def build_states(entity_class)
+      return {} unless entity_class.respond_to?(:transitions_config) && entity_class.transitions_config.any?
+
+      {
+        "field" => entity_class.state_field,
+        "transitions" => entity_class.transitions_config.transform_values { |v|
+          { "from" => v[:from].to_s, "to" => v[:to].to_s }
+        }.transform_keys(&:to_s)
+      }
     end
 
     def build_links(plural, relations)

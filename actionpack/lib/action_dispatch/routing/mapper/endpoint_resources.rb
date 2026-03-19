@@ -27,10 +27,29 @@ module ActionDispatch
             patch  "/:id", to: endpoint_dispatch(endpoint_class, :update)                         if actions.include?(:update)
             put    "/:id", to: endpoint_dispatch(endpoint_class, :update)                         if actions.include?(:update)
             delete "/:id", to: endpoint_dispatch(endpoint_class, :destroy)                        if actions.include?(:destroy)
+
+            entity_class = resource_name.to_s.camelize.constantize rescue nil
+            if entity_class&.respond_to?(:transitions_config)
+              entity_class.transitions_config.each_key do |t_name|
+                post "/:id/#{t_name}", to: transition_dispatch(endpoint_class, t_name)
+              end
+            end
           end
         end
 
         private
+
+        def transition_dispatch(endpoint_class, transition_name)
+          lambda do |env|
+            path_params = env["action_dispatch.request.path_parameters"] || {}
+            params = path_params.with_indifferent_access
+            endpoint_class.new.transition(params, transition_name)
+          rescue ActiveRecord::RecordNotFound
+            [404, { "content-type" => "application/json" }, [{ "error" => "Not found", "status" => 404 }.to_json]]
+          rescue StandardError => e
+            [500, { "content-type" => "application/json" }, [{ "error" => e.message, "status" => 500 }.to_json]]
+          end
+        end
 
         def endpoint_dispatch(endpoint_class, action_name)
           lambda do |env|
