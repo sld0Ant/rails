@@ -31,7 +31,19 @@ module ActionDispatch
             entity_class = resource_name.to_s.camelize.constantize rescue nil
             if entity_class&.respond_to?(:transitions_config)
               entity_class.transitions_config.each_key do |t_name|
-                post "/:id/#{t_name}", to: endpoint_dispatch(endpoint_class, :transition, transition: t_name)
+                post "/:id/#{t_name}", to: endpoint_dispatch(endpoint_class, :transition, context: { transition: t_name })
+              end
+            end
+
+            if endpoint_class.respond_to?(:actions_config) && endpoint_class.actions_config.any?
+              endpoint_class.actions_config.each do |action_cfg|
+                method_sym = action_cfg[:method].to_s.downcase.to_sym
+                name = action_cfg[:name].to_s
+                if action_cfg[:on].to_s == "member"
+                  send(method_sym, "/:id/#{name}", to: endpoint_dispatch(endpoint_class, :custom_action, context: { custom_action: name }))
+                else
+                  send(method_sym, "/#{name}", to: endpoint_dispatch(endpoint_class, :custom_action, context: { custom_action: name }))
+                end
               end
             end
           end
@@ -60,13 +72,23 @@ module ActionDispatch
           [403, { "content-type" => "application/json" }, [{ "error" => "Forbidden", "status" => 403 }.to_json]]
         end
 
-        def endpoint_dispatch(endpoint_class, action_name, transition: nil)
+        def endpoint_dispatch(endpoint_class, action_name, context: {})
+          transition = context[:transition]
+          custom_action = context[:custom_action]
+
           lambda do |env|
-            auth_key = transition || action_name
+            auth_key = custom_action || transition || action_name
             forbidden = check_authorization(endpoint_class, auth_key, env)
             return forbidden if forbidden
 
-            label = transition ? "#{action_name}.#{transition}" : action_name.to_s
+            label = if custom_action
+              "custom_action.#{custom_action}"
+            elsif transition
+              "transition.#{transition}"
+            else
+              action_name.to_s
+            end
+
             ActiveSupport::Notifications.instrument("endpoint.process",
               endpoint: endpoint_class.name, action: label) do
 
@@ -88,7 +110,9 @@ module ActionDispatch
                 .merge(path_params)
                 .with_indifferent_access
 
-              if transition
+              if custom_action
+                endpoint_class.new.custom_action(params, custom_action)
+              elsif transition
                 endpoint_class.new.transition(params, transition)
               else
                 endpoint_class.new.public_send(action_name, params)

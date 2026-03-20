@@ -110,6 +110,7 @@ module Rails
       keep_file  "app/services"
       keep_file  "app/repositories"
       keep_file  "app/records"
+      keep_file  "app/middleware"
     end
 
     def bin

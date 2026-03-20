@@ -118,7 +118,7 @@ Read all behavior specs and produce `docs/ir.json`.
 
 ```json
 {
-  "$schema": "ddd-ir/1.1",
+  "$schema": "ddd-ir/1.2",
   "resources": [
     {
       "name": "Course",
@@ -127,7 +127,7 @@ Read all behavior specs and produce `docs/ir.json`.
       "attributes": {
         "id":         { "type": "integer",  "nullable": false, "readonly": true },
         "title":      { "type": "string",   "nullable": false, "readonly": false },
-        "status":     { "type": "string",   "nullable": false, "readonly": false },
+        "status":     { "type": "string",   "nullable": false, "readonly": false, "default": "draft" },
         "created_at": { "type": "datetime", "nullable": false, "readonly": true },
         "updated_at": { "type": "datetime", "nullable": false, "readonly": true }
       },
@@ -145,6 +145,13 @@ Read all behavior specs and produce `docs/ir.json`.
       "relations": {
         "instructor": { "kind": "belongs_to", "resource": "Instructor", "required": true }
       },
+      "transitions": {
+        "field": "status",
+        "events": {
+          "publish": { "from": "draft", "to": "published" },
+          "archive": { "from": ["draft", "published"], "to": "archived" }
+        }
+      },
       "collection": {
         "sort": ["title", "created_at"],
         "filter": ["status", "instructor_id"],
@@ -160,11 +167,11 @@ Read all behavior specs and produce `docs/ir.json`.
 
 | Spec section         | IR field it informs                          |
 |----------------------|----------------------------------------------|
-| Contracts invariants | `validators`, `nullable`, attribute types     |
+| Contracts invariants | `validators`, `nullable`, attribute `default`  |
 | Authorization table  | which `operations` exist (no destroy = omit)  |
-| Lifecycle states     | `status` attribute + transitions in code      |
+| Lifecycle states     | `transitions` block (field, events, from/to)  |
 | Scenarios            | nothing in IR (drives step 5)                 |
-| Side effects         | nothing in IR (drives step 5)                 |
+| Side effects         | `actions` (custom endpoints like mark_read)   |
 
 ### Rules:
 
@@ -275,23 +282,22 @@ You do NOT touch Endpoint or Repository for business logic.
 
 ### 5a. Entity — invariants and state machine
 
-Invariants from the Contracts section go directly to validations.
-Lifecycle from the Lifecycle section goes to `transitions`.
+If the IR has `default` and `transitions`, the generator already produced them.
+You add only what the generator can't know: validation rules from the spec.
 
 ```ruby
 class Course < ApplicationEntity
   attribute :id, :integer
   attribute :title, :string
-  attribute :status, :string
+  attribute :status, :string, default: "draft"     # ← from IR default
   # ... other generated attributes stay
 
-  # Invariants → validations
+  # Invariants → validations (YOU add these)
   validates :title, presence: true
   validates :price_cents, numericality: { greater_than_or_equal_to: 0 }
   validates :status, inclusion: { in: %w[draft published archived] }
 
-  # Lifecycle → transitions DSL
-  # `from:` accepts a single value or an array
+  # ← transitions DSL already generated from IR
   transitions :status,
     publish: { from: "draft", to: "published" },
     archive: { from: ["draft", "published"], to: "archived" }
@@ -455,8 +461,8 @@ class CourseService < ApplicationService
     course = repository.find(id)
 
     # Spec: "instructor: own" → instructor can update only own courses
-    if Thread.current[:user_role] == "instructor" &&
-       course.instructor_id != Thread.current[:user_id]
+    if Current.user_role == "instructor" &&
+       course.instructor_id != Current.user_id
       course.errors.add(:base, "Forbidden")
       return course
     end
@@ -468,8 +474,8 @@ class CourseService < ApplicationService
     course = repository.find(id)
 
     # Spec: "instructor: own+draft" → only own draft courses
-    if Thread.current[:user_role] == "instructor"
-      if course.instructor_id != Thread.current[:user_id]
+    if Current.user_role == "instructor"
+      if course.instructor_id != Current.user_id
         course.errors.add(:base, "Forbidden")
         return course
       end
@@ -546,6 +552,11 @@ app/
 **ApplicationService** — inherit and get:
 - `perform_transition(id, :name)` — public, called by endpoint for state changes
 - `guard_transition(entity, :name)` — private hook, override to add preconditions
+
+**Current** (ActiveSupport::CurrentAttributes) — available in all services:
+- `Current.user_role` — from `X-User-Role` header
+- `Current.user_id` — from `X-User-Id` header (integer)
+- Fiber-safe, auto-resets after each request
 
 ## Summary
 

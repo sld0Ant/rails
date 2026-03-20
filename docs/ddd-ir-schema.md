@@ -1,6 +1,6 @@
 # DDD IR — Intermediate Representation Format
 
-**Version:** 1.0
+**Version:** 1.2
 **Status:** Stable
 **Media type:** `application/json`
 
@@ -43,14 +43,14 @@ rails generate from_ir docs/ir.json   # → scaffold all resources
 
 ```json
 {
-  "$schema": "ddd-ir/1.0",
+  "$schema": "ddd-ir/1.2",
   "resources": [ ... ]
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | string | yes | Format version. Always `"ddd-ir/1.0"` |
+| `$schema` | string | yes | Format version. Currently `"ddd-ir/1.2"` |
 | `resources` | array | yes | Array of resource objects |
 
 ## Resource object
@@ -76,6 +76,9 @@ rails generate from_ir docs/ir.json   # → scaffold all resources
 | `permit` | array | yes | List of writable attribute names (used in endpoint `permit:` and request bodies). |
 | `operations` | array | yes | List of CRUD operations with HTTP method and path. |
 | `validators` | array | yes | List of validation rules (may be empty). |
+| `transitions` | object | no | State machine declaration. See Transitions section. |
+| `unique` | array | no | Unique constraints. See Unique section. |
+| `actions` | array | no | Custom (non-CRUD) actions. See Actions section. |
 
 ## Attribute descriptor
 
@@ -92,6 +95,7 @@ rails generate from_ir docs/ir.json   # → scaffold all resources
 | `type` | string | yes | Ruby type name. See type vocabulary below. |
 | `nullable` | boolean | yes | Whether the field can be null. `id` is always non-nullable. |
 | `readonly` | boolean | yes | If true, the field is not writable (e.g. `id`, `created_at`, `updated_at`). Readonly fields are excluded from scaffold attribute arguments and request bodies. |
+| `default` | any | no | Default value. Allowed types: string, integer, float, boolean, null. Absent = no default. |
 
 ## Type vocabulary
 
@@ -149,35 +153,110 @@ Standard CRUD operations:
 | `type` | string | yes | Validator type (e.g. `presence`, `length`, `uniqueness`, `format`) |
 | `fields` | array | yes | List of attribute names this validator applies to |
 
+## Transitions object
+
+Declares a state machine on a resource. Optional.
+
+```json
+{
+  "transitions": {
+    "field": "status",
+    "events": {
+      "publish": { "from": "draft", "to": "published" },
+      "archive": { "from": ["draft", "published"], "to": "archived" }
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `field` | string | yes | Attribute name that holds the state. Must exist in `attributes`. |
+| `events` | object | yes | Map of event name → transition config. |
+
+Each event has:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `from` | string or array | yes | Source state(s). Array for multiple sources. |
+| `to` | string | yes | Target state. |
+
+Generates `transitions` DSL in entity and auto-creates `POST /<plural>/:id/<event>` routes.
+
+## Unique constraints
+
+Declares unique indexes on the database table. Optional.
+
+```json
+{
+  "unique": ["slug", ["course_id", "student_id"]]
+}
+```
+
+Each element: a string (single column) or array of strings (compound unique).
+Generates `add_index :table, :col, unique: true` in migration.
+
+## Actions (custom endpoints)
+
+Declares non-CRUD actions. Optional.
+
+```json
+{
+  "actions": [
+    { "name": "mark_read", "method": "PATCH", "on": "member" },
+    { "name": "batch_read", "method": "POST", "on": "collection" }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Action name. Must not collide with CRUD or transition names. |
+| `method` | string | yes | HTTP method: GET, POST, PATCH, PUT, DELETE. |
+| `on` | string | yes | `member` (acts on /:id) or `collection` (acts on /). |
+
+Member routes: `<METHOD> /<plural>/:id/<name>` → `service.<name>(id, params)`
+Collection routes: `<METHOD> /<plural>/<name>` → `service.<name>(params)`
+
+Service must implement a method with the action name.
+
 ## Complete example
 
 ```json
 {
-  "$schema": "ddd-ir/1.0",
+  "$schema": "ddd-ir/1.2",
   "resources": [
     {
-      "name": "Parcel",
-      "plural": "parcels",
-      "path": "/parcels",
+      "name": "Course",
+      "plural": "courses",
+      "path": "/courses",
       "attributes": {
-        "id":                { "type": "integer",  "nullable": false, "readonly": true },
-        "registration_number":  { "type": "string",   "nullable": true,  "readonly": false },
-        "area":              { "type": "float",    "nullable": true,  "readonly": false },
-        "status":            { "type": "string",   "nullable": true,  "readonly": false },
-        "created_at":        { "type": "datetime", "nullable": false, "readonly": true },
-        "updated_at":        { "type": "datetime", "nullable": false, "readonly": true }
+        "id":         { "type": "integer",  "nullable": false, "readonly": true },
+        "title":      { "type": "string",   "nullable": false, "readonly": false },
+        "status":     { "type": "string",   "nullable": false, "readonly": false, "default": "draft" },
+        "slug":       { "type": "string",   "nullable": false, "readonly": false },
+        "created_at": { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at": { "type": "datetime", "nullable": false, "readonly": true }
       },
-      "permit": ["registration_number", "area", "status"],
+      "permit": ["title", "status", "slug"],
       "operations": [
-        { "action": "index",   "method": "GET",    "path": "/parcels" },
-        { "action": "show",    "method": "GET",    "path": "/parcels/{id}" },
-        { "action": "create",  "method": "POST",   "path": "/parcels" },
-        { "action": "update",  "method": "PATCH",  "path": "/parcels/{id}" },
-        { "action": "destroy", "method": "DELETE",  "path": "/parcels/{id}" }
+        { "action": "index",   "method": "GET",    "path": "/courses" },
+        { "action": "show",    "method": "GET",    "path": "/courses/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/courses" },
+        { "action": "update",  "method": "PATCH",  "path": "/courses/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/courses/{id}" }
       ],
       "validators": [
-        { "type": "presence", "fields": ["registration_number"] }
-      ]
+        { "type": "presence", "fields": ["title"] }
+      ],
+      "transitions": {
+        "field": "status",
+        "events": {
+          "publish": { "from": "draft", "to": "published" },
+          "archive": { "from": ["draft", "published"], "to": "archived" }
+        }
+      },
+      "unique": ["slug"]
     }
   ]
 }
@@ -197,7 +276,7 @@ The two `ir.json` files will be **structurally identical** (attribute order may 
 
 ## Versioning
 
-The `$schema` field contains the format version. Current: `"ddd-ir/1.0"`.
+The `$schema` field contains the format version. Current: `"ddd-ir/1.2"`.
 
 Breaking changes increment the major version. New optional fields increment the minor version.
 

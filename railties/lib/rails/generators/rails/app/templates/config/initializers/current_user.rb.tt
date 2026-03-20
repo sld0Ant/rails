@@ -1,0 +1,2 @@
+require_relative "../../app/middleware/set_current_user"
+Rails.application.config.middleware.use SetCurrentUser

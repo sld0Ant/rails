@@ -47,7 +47,7 @@ module DDD
         "relations" => build_relations(record_class, entity_name),
         "collection" => build_collection(endpoint_class),
         "links" => build_links(plural, build_relations(record_class, entity_name)),
-        "states" => build_states(entity_class),
+        "transitions" => build_transitions(entity_class).presence,
         "aggregate_root" => (entity_class.aggregate_root if entity_class.respond_to?(:aggregate_root) && entity_class.aggregate_root),
         "aggregate" => (entity_class.aggregate_parent if entity_class.respond_to?(:aggregate_parent) && entity_class.aggregate_parent),
         "authorization" => build_authorization(endpoint_class)
@@ -63,11 +63,18 @@ module DDD
         sql = record_columns[name]
         ir_type = "text" if ir_type == "string" && sql&.match?(/\btext\b/i)
 
-        hash[name] = {
+        attr_desc = {
           "type" => ir_type,
           "nullable" => !%w[id].include?(name),
           "readonly" => READONLY.include?(name)
         }
+
+        default_attr = entity_class._default_attributes[name]
+        if default_attr.is_a?(ActiveModel::Attribute::UserProvidedDefault)
+          attr_desc["default"] = default_attr.value
+        end
+
+        hash[name] = attr_desc
       end
     end
 
@@ -96,13 +103,14 @@ module DDD
       endpoint_class.authorize_config.transform_keys(&:to_s).transform_values { |v| v.map(&:to_s) }
     end
 
-    def build_states(entity_class)
+    def build_transitions(entity_class)
       return {} unless entity_class.respond_to?(:transitions_config) && entity_class.transitions_config.any?
 
       {
         "field" => entity_class.state_field,
-        "transitions" => entity_class.transitions_config.transform_values { |v|
-          { "from" => v[:from].to_s, "to" => v[:to].to_s }
+        "events" => entity_class.transitions_config.transform_values { |v|
+          from = v[:from]
+          { "from" => from.is_a?(Array) ? from.map(&:to_s) : from.to_s, "to" => v[:to].to_s }
         }.transform_keys(&:to_s)
       }
     end

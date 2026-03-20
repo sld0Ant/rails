@@ -11,6 +11,11 @@ module Rails
       argument :ir_path, type: :string, banner: "PATH_TO_IR_JSON"
 
       READONLY_ATTRIBUTES = %w[id created_at updated_at].freeze
+      RESERVED_NAMES = %w[
+        Module Class Object Kernel Method Process Signal Thread Fiber
+        BasicObject Integer Float String Array Hash Set Struct Data
+        Application Base Engine Railtie Record
+      ].freeze
 
       def validate_file
         unless File.exist?(ir_path)
@@ -44,6 +49,12 @@ module Rails
 
         sorted.each do |resource|
           name = resource["name"]
+
+          if RESERVED_NAMES.include?(name)
+            say_status "error", "Resource name '#{name}' conflicts with Ruby/Rails constant. Rename in ir.json (e.g., 'Course#{name}' instead of '#{name}').", :red
+            raise SystemExit
+          end
+
           attrs = build_attribute_args(resource)
 
           say_status "scaffold", "#{name} #{attrs.join(' ')}", :cyan
@@ -56,6 +67,10 @@ module Rails
           patch_custom_fks(resource)
           patch_optional_fks(resource)
           patch_endpoint_collection(resource)
+          patch_entity_defaults(resource)
+          patch_entity_transitions(resource)
+          patch_unique_indexes(resource)
+          patch_endpoint_actions(resource)
         end
 
         add_has_many_to_parents(sorted)
@@ -274,6 +289,107 @@ module Rails
             say_status "has_many", "#{target}Record → #{child_plural}", :yellow
           end
         end
+      end
+
+      def patch_entity_defaults(resource)
+        defaults = {}
+        (resource["attributes"] || {}).each do |attr_name, info|
+          next unless info.key?("default")
+          defaults[attr_name] = info["default"]
+        end
+        return if defaults.empty?
+
+        file_name = resource["name"].underscore
+        path = File.join(destination_root, "app/entities/#{file_name}.rb")
+        return unless File.exist?(path)
+
+        content = File.read(path)
+        defaults.each do |attr_name, default_val|
+          ruby_val = case default_val
+            when String then default_val.inspect
+            when NilClass then "nil"
+            else default_val.to_s
+          end
+          content.gsub!(
+            /attribute :#{attr_name}, (:\w+)(?!.*default:)$/,
+            "attribute :#{attr_name}, \\1, default: #{ruby_val}"
+          )
+        end
+        File.write(path, content)
+        say_status "defaults", "#{resource['name']}: #{defaults.keys.join(', ')}", :yellow
+      end
+
+      def patch_entity_transitions(resource)
+        t = resource["transitions"]
+        return unless t && t["events"]&.any?
+
+        file_name = resource["name"].underscore
+        path = File.join(destination_root, "app/entities/#{file_name}.rb")
+        return unless File.exist?(path)
+
+        content = File.read(path)
+        return if content.include?("transitions :#{t['field']}")
+
+        lines = [""]
+        lines << "  transitions :#{t['field']},"
+        events = t["events"].map do |event_name, cfg|
+          from = cfg["from"]
+          from_ruby = from.is_a?(Array) ? "[#{from.map { |f| "\"#{f}\"" }.join(', ')}]" : "\"#{from}\""
+          "    #{event_name}: { from: #{from_ruby}, to: \"#{cfg['to']}\" }"
+        end
+        lines << events.join(",\n")
+
+        content.sub!(/^end\s*\z/, "#{lines.join("\n")}\nend\n")
+        File.write(path, content)
+        say_status "transitions", "#{resource['name']}: #{t['events'].keys.join(', ')}", :yellow
+      end
+
+      def patch_unique_indexes(resource)
+        uniques = resource["unique"]
+        return unless uniques&.any?
+
+        file_name = resource["name"].underscore
+        table_name = resource["plural"] || file_name.pluralize
+        migration = Dir.glob(File.join(destination_root, "db/migrate/*_create_#{table_name}.rb")).first
+        return unless migration && File.exist?(migration)
+
+        content = File.read(migration)
+        index_lines = uniques.map do |cols|
+          cols_ruby = cols.is_a?(Array) ? "[#{cols.map { |c| ":#{c}" }.join(', ')}]" : ":#{cols}"
+          "    add_index :#{table_name}, #{cols_ruby}, unique: true"
+        end
+
+        content.sub!(/^(    end\n  end\n)/) { "    end\n#{index_lines.join("\n")}\n  end\n" }
+        File.write(migration, content)
+        say_status "unique", "#{resource['name']}: #{uniques.inspect}", :yellow
+      end
+
+      def patch_endpoint_actions(resource)
+        actions = resource["actions"]
+        return unless actions&.any?
+
+        file_name = resource["name"].underscore
+        plural = resource["plural"] || file_name.pluralize
+        path = File.join(destination_root, "app/endpoints/#{plural}_endpoint.rb")
+        return unless File.exist?(path)
+
+        content = File.read(path)
+        return if content.include?("actions:")
+
+        actions_ruby = actions.map do |a|
+          "{name: :#{a['name']}, method: :#{a['method'].downcase}, on: :#{a['on']}}"
+        end.join(", ")
+
+        inserted = false
+        %w[relations: per_page: filter: sort: permit:].each do |marker|
+          if content.include?(marker) && !inserted
+            content.sub!(/(#{Regexp.escape(marker)}[^\n]*\n)/) { "#{$1}    actions: [#{actions_ruby}],\n" }
+            inserted = true
+          end
+        end
+
+        File.write(path, content) if inserted
+        say_status "actions", "#{resource['name']}: #{actions.map { |a| a['name'] }.join(', ')}", :yellow
       end
 
       def topological_sort(resources)

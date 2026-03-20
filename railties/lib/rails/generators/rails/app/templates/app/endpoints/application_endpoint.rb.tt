@@ -9,9 +9,10 @@ class ApplicationEndpoint
   class_attribute :cache_config, default: {}
   class_attribute :resource_relations, default: {}
   class_attribute :authorize_config, default: {}
+  class_attribute :actions_config, default: []
 
   class << self
-    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {}, relations: {}, authorize: {})
+    def resource(name, service:, permit: [], sort: [], filter: [], search: [], per_page: nil, cache: {}, relations: {}, authorize: {}, actions: [])
       self.resource_name = name
       self.service_class = service
       self.permitted_params = permit
@@ -22,6 +23,7 @@ class ApplicationEndpoint
       self.cache_config = cache
       self.resource_relations = relations
       self.authorize_config = authorize
+      self.actions_config = actions
     end
   end
 
@@ -74,6 +76,18 @@ class ApplicationEndpoint
       [200, json_headers, [with_links(entity.as_json).to_json]]
     else
       [422, json_headers, [{ errors: entity.errors.as_json }.to_json]]
+    end
+  end
+
+  def custom_action(params, action_name)
+    cfg = self.class.actions_config.find { |a| a[:name].to_s == action_name.to_s }
+    args = cfg && cfg[:on].to_s == "collection" ? [params] : [params[:id], params]
+    result = service.public_send(action_name, *args)
+    if result.respond_to?(:errors) && result.errors.any?
+      [422, json_headers, [{ errors: result.errors.as_json }.to_json]]
+    else
+      body = result.respond_to?(:as_json) ? result.as_json : result
+      [200, json_headers, [body.to_json]]
     end
   end
 
