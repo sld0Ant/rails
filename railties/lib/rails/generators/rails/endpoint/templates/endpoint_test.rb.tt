@@ -1,0 +1,20 @@
+require "test_helper"
+
+<% module_namespacing do -%>
+class <%= class_name %>EndpointTest < ActionDispatch::IntegrationTest
+  test "index returns success" do
+    get "/<%= file_name %>", as: :json
+    assert_response :success
+  end
+
+  test "show returns not found for missing id" do
+    get "/<%= file_name %>/999999", as: :json
+    assert_response :not_found
+  end
+
+  test "create returns created" do
+    post "/<%= file_name %>", params: { <%= singular_resource_name %>: { <%= test_attributes %> } }, as: :json
+    assert_response :created
+  end
+end
+<% end -%>

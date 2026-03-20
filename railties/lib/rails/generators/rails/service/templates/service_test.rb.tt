@@ -1,0 +1,29 @@
+require "test_helper"
+
+<% module_namespacing do -%>
+class <%= class_name %>ServiceTest < ActiveSupport::TestCase
+  def setup
+    @service = <%= class_name %>Service.new
+  end
+
+  test "responds to list_all" do
+    assert_respond_to @service, :list_all
+  end
+
+  test "responds to find" do
+    assert_respond_to @service, :find
+  end
+
+  test "responds to create" do
+    assert_respond_to @service, :create
+  end
+
+  test "responds to update" do
+    assert_respond_to @service, :update
+  end
+
+  test "responds to destroy" do
+    assert_respond_to @service, :destroy
+  end
+end
+<% end -%>

@@ -15,6 +15,10 @@ module Rails
         template "entity.rb", File.join("app/entities", class_path, "#{file_name}.rb")
       end
 
+      def create_test_file
+        template "entity_test.rb", File.join("test/entities", class_path, "#{file_name}_test.rb")
+      end
+
       private
 
         ACTIVE_MODEL_TYPES = {

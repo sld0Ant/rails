@@ -1,0 +1,33 @@
+require "test_helper"
+
+<% module_namespacing do -%>
+class <%= class_name %>RepositoryTest < ActiveSupport::TestCase
+  def setup
+    @repository = <%= class_name %>Repository.new
+  end
+
+  test "record_class is set" do
+    assert_equal <%= class_name %>Record, @repository.class.record_class
+  end
+
+  test "entity_class is set" do
+    assert_equal <%= class_name %>, @repository.class.entity_class
+  end
+
+  test "responds to all" do
+    assert_respond_to @repository, :all
+  end
+
+  test "responds to find" do
+    assert_respond_to @repository, :find
+  end
+
+  test "responds to create" do
+    assert_respond_to @repository, :create
+  end
+
+  test "responds to paginate" do
+    assert_respond_to @repository, :paginate
+  end
+end
+<% end -%>

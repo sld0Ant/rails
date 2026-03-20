@@ -15,6 +15,10 @@ module Rails
         template "endpoint.rb", File.join("app/endpoints", class_path, "#{file_name}_endpoint.rb")
       end
 
+      def create_test_file
+        template "endpoint_test.rb", File.join("test/endpoints", class_path, "#{file_name}_endpoint_test.rb")
+      end
+
       private
 
         def file_name
@@ -35,6 +39,18 @@ module Rails
 
         def filterable_fields
           attributes.select(&:reference?).map { |a| ":#{a.name}_id" }.join(", ")
+        end
+
+        def test_attributes
+          attributes.reject(&:reference?).map { |a|
+            val = case a.type.to_s
+                  when "integer" then "1"
+                  when "float", "decimal" then "1.0"
+                  when "boolean" then "true"
+                  else '"test"'
+                  end
+            "#{a.name}: #{val}"
+          }.join(", ")
         end
 
         def relation_config

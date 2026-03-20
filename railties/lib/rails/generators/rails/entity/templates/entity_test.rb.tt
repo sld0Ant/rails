@@ -1,0 +1,22 @@
+require "test_helper"
+
+<% module_namespacing do -%>
+class <%= class_name %>Test < ActiveSupport::TestCase
+  test "creates entity with attributes" do
+    entity = <%= class_name %>.new(<%= entity_attributes.map { |a| "#{a[:name]}: #{a[:type] == ':integer' ? '1' : a[:type] == ':boolean' ? 'true' : a[:type] == ':float' ? '1.0' : '"test"'}" }.join(', ') %>)
+<% entity_attributes.first(2).each do |attr| -%>
+    assert_not_nil entity.<%= attr[:name] %>
+<% end -%>
+  end
+
+  test "not persisted without id" do
+    entity = <%= class_name %>.new
+    assert_not entity.persisted?
+  end
+
+  test "persisted with id" do
+    entity = <%= class_name %>.new(id: 1)
+    assert entity.persisted?
+  end
+end
+<% end -%>

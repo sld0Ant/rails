@@ -13,6 +13,10 @@ module Rails
         template "repository.rb", File.join("app/repositories", class_path, "#{file_name}_repository.rb")
       end
 
+      def create_test_file
+        template "repository_test.rb", File.join("test/repositories", class_path, "#{file_name}_repository_test.rb")
+      end
+
       private
 
         def file_name

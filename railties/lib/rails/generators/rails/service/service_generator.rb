@@ -13,6 +13,10 @@ module Rails
         template "service.rb", File.join("app/services", class_path, "#{file_name}_service.rb")
       end
 
+      def create_test_file
+        template "service_test.rb", File.join("test/services", class_path, "#{file_name}_service_test.rb")
+      end
+
       private
 
         def file_name
