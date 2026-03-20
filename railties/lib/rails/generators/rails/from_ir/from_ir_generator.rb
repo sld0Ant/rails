@@ -50,7 +50,12 @@ module Rails
 
           generate "scaffold", name, *attrs,
             "--no-test-framework",
-            "--no-resource-route"
+            "--no-resource-route",
+            "--skip-collision-check"
+
+          patch_custom_fks(resource)
+          patch_optional_fks(resource)
+          patch_endpoint_collection(resource)
         end
       end
 
@@ -66,7 +71,7 @@ module Rails
           if r["parent"]
             say "       # #{r['name']} is nested under #{r['parent']}"
           else
-            say "       endpoint #{r['plural'].camelize}Endpoint"
+            say "       endpoint #{r['plural']&.camelize || r['name'].pluralize}Endpoint"
           end
         end
         say "  3. Start server:    rails server"
@@ -90,6 +95,135 @@ module Rails
         end
 
         attrs
+      end
+
+      def patch_custom_fks(resource)
+        custom_fks = (resource["relations"] || {}).select do |assoc_name, rel|
+          rel["kind"] == "belongs_to" && assoc_name != rel["resource"].downcase
+        end
+
+        return if custom_fks.empty?
+
+        name = resource["name"]
+        file_name = name.underscore
+
+        custom_fks.each do |assoc_name, rel|
+          target = rel["resource"]
+          wrong_record = "#{assoc_name.camelize}Record"
+          right_record = "#{target}Record"
+          target_table = target.downcase.pluralize
+          required = rel["required"] != false
+
+          say_status "patch", "#{name}: #{assoc_name} → #{target}", :yellow
+
+          patch_record(file_name, assoc_name, wrong_record, right_record, required)
+          patch_migration(file_name, name, assoc_name, target_table, required)
+          patch_endpoint(file_name, name, assoc_name, target)
+        end
+      end
+
+      def patch_record(file_name, assoc_name, wrong_record, right_record, required)
+        path = File.join(destination_root, "app/records/#{file_name}_record.rb")
+        return unless File.exist?(path)
+
+        content = File.read(path)
+        old_line = "belongs_to :#{assoc_name}, class_name: \"#{wrong_record}\""
+
+        if required
+          new_line = "belongs_to :#{assoc_name}, class_name: \"#{right_record}\", foreign_key: \"#{assoc_name}_id\""
+        else
+          new_line = "belongs_to :#{assoc_name}, class_name: \"#{right_record}\", foreign_key: \"#{assoc_name}_id\", optional: true"
+        end
+
+        File.write(path, content.gsub(old_line, new_line))
+      end
+
+      def patch_migration(file_name, name, assoc_name, target_table, required)
+        migration = Dir.glob(File.join(destination_root, "db/migrate/*_create_#{file_name.pluralize}.rb")).first
+        return unless migration && File.exist?(migration)
+
+        content = File.read(migration)
+        old_ref = "t.references :#{assoc_name}, null: false, foreign_key: true"
+        new_ref = if required
+          "t.references :#{assoc_name}, null: false, foreign_key: { to_table: :#{target_table} }"
+        else
+          "t.references :#{assoc_name}, foreign_key: { to_table: :#{target_table} }"
+        end
+
+        File.write(migration, content.gsub(old_ref, new_ref))
+      end
+
+      def patch_endpoint(file_name, name, assoc_name, target)
+        path = File.join(destination_root, "app/endpoints/#{file_name.pluralize}_endpoint.rb")
+        return unless File.exist?(path)
+
+        content = File.read(path)
+        old_rel = "#{assoc_name}: { kind: :belongs_to, resource: \"#{assoc_name.camelize}\" }"
+        new_rel = "#{assoc_name}: { kind: :belongs_to, resource: \"#{target}\" }"
+
+        File.write(path, content.gsub(old_rel, new_rel))
+      end
+
+      def patch_optional_fks(resource)
+        (resource["relations"] || {}).each do |assoc_name, rel|
+          next unless rel["kind"] == "belongs_to" && rel["required"] == false
+
+          name = resource["name"]
+          file_name = name.underscore
+
+          record_path = File.join(destination_root, "app/records/#{file_name}_record.rb")
+          if File.exist?(record_path)
+            content = File.read(record_path)
+            content.gsub!(/belongs_to :#{assoc_name}(.*)$/) do
+              line = "belongs_to :#{assoc_name}#{$1}"
+              line.include?("optional:") ? line : line.rstrip + ", optional: true"
+            end
+            File.write(record_path, content)
+          end
+
+          migration = Dir.glob(File.join(destination_root, "db/migrate/*_create_#{file_name.pluralize}.rb")).first
+          if migration && File.exist?(migration)
+            content = File.read(migration)
+            content.gsub!(/t\.references :#{assoc_name}, null: false,/, "t.references :#{assoc_name},")
+            File.write(migration, content)
+          end
+        end
+      end
+
+      def patch_endpoint_collection(resource)
+        coll = resource["collection"]
+        return unless coll && coll.any?
+
+        file_name = resource["name"].underscore
+        plural = resource["plural"] || file_name.pluralize
+        path = File.join(destination_root, "app/endpoints/#{plural}_endpoint.rb")
+        return unless File.exist?(path)
+
+        content = File.read(path)
+
+        if coll["filter"]
+          old_filter = content[/filter: \[.*?\]/]
+          new_filter = "filter: [#{coll['filter'].map { |f| ":#{f}" }.join(', ')}]"
+          content.gsub!(old_filter, new_filter) if old_filter
+        end
+
+        if coll["search"]
+          if content.include?("per_page:")
+            content.gsub!(/per_page: (\d+)/) { "search: [#{coll['search'].map { |s| ":#{s}" }.join(', ')}],\n    per_page: #{$1}" }
+          end
+        end
+
+        if coll["sort"]
+          old_sort = content[/sort: \[.*?\]/]
+          new_sort = "sort: [#{coll['sort'].map { |s| ":#{s}" }.join(', ')}]"
+          content.gsub!(old_sort, new_sort) if old_sort
+        end
+
+        if coll["per_page"]
+          content.gsub!(/per_page: \d+/, "per_page: #{coll['per_page']}")
+        end
+
+        File.write(path, content)
       end
 
       def topological_sort(resources)
