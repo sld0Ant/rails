@@ -420,23 +420,81 @@ class PaymentService < ApplicationService
 end
 ```
 
-### 5e. Authorization → Endpoint config
+### 5e. Authorization — two levels
 
-Authorization table from the spec maps to `authorize:` in the endpoint:
+Authorization in the spec decision table maps to two places:
+
+**Level 1 — Gate (endpoint).** Which roles can attempt this action at all?
+Simple `✓`/`✗` entries from the table. Checked before loading the resource.
 
 ```ruby
 class CoursesEndpoint < ApplicationEndpoint
   resource :course,
     service: CourseService,
-    permit: [:title, :description, :instructor_id, :status],
+    permit: [:title, :description, :instructor_id],
     authorize: {
-      create:  { roles: [:admin, :instructor] },
-      update:  { roles: [:admin], owner: :instructor },
-      destroy: { roles: [:admin], owner: :instructor, condition: "draft" }
+      create:  [:admin, :instructor],
+      update:  [:admin, :instructor],
+      destroy: [:admin, :instructor],
+      publish: [:admin, :instructor],
+      archive: [:admin, :instructor]
     }
     # ... sort, filter, relations stay as generated
 end
 ```
+
+Role is read from `X-User-Role` header. `["*"]` means public.
+Transitions (publish, archive) are checked by name — same config.
+
+**Level 2 — Domain (service).** Can THIS user do THIS to THIS resource?
+Entries like `own`, `own+draft`, `published only`. Checked after loading.
+
+```ruby
+class CourseService < ApplicationService
+  def update(id, attributes)
+    course = repository.find(id)
+
+    # Spec: "instructor: own" → instructor can update only own courses
+    if Thread.current[:user_role] == "instructor" &&
+       course.instructor_id != Thread.current[:user_id]
+      course.errors.add(:base, "Forbidden")
+      return course
+    end
+
+    repository.update(id, attributes)
+  end
+
+  def destroy(id)
+    course = repository.find(id)
+
+    # Spec: "instructor: own+draft" → only own draft courses
+    if Thread.current[:user_role] == "instructor"
+      if course.instructor_id != Thread.current[:user_id]
+        course.errors.add(:base, "Forbidden")
+        return course
+      end
+      if course.status != "draft"
+        course.errors.add(:base, "Can only delete draft courses")
+        return course
+      end
+    end
+
+    repository.destroy(id)
+  end
+
+  # ...
+end
+```
+
+How to read the decision table:
+
+| Entry          | Level    | Where                        |
+|----------------|----------|------------------------------|
+| `✓`            | Gate     | endpoint `authorize:`        |
+| `✗`            | Gate     | omit from `authorize:` list  |
+| `own`          | Domain   | service method               |
+| `own+draft`    | Domain   | service method               |
+| `published`    | Domain   | service method               |
 
 ---
 

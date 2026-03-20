@@ -31,7 +31,7 @@ module ActionDispatch
             entity_class = resource_name.to_s.camelize.constantize rescue nil
             if entity_class&.respond_to?(:transitions_config)
               entity_class.transitions_config.each_key do |t_name|
-                post "/:id/#{t_name}", to: transition_dispatch(endpoint_class, t_name)
+                post "/:id/#{t_name}", to: endpoint_dispatch(endpoint_class, :transition, transition: t_name)
               end
             end
           end
@@ -39,25 +39,20 @@ module ActionDispatch
 
         private
 
-        def transition_dispatch(endpoint_class, transition_name)
-          lambda do |env|
-            path_params = env["action_dispatch.request.path_parameters"] || {}
-            params = path_params.with_indifferent_access
-            endpoint_class.new.transition(params, transition_name)
-          rescue ActiveRecord::RecordNotFound
-            [404, { "content-type" => "application/json" }, [{ "error" => "Not found", "status" => 404 }.to_json]]
-          rescue StandardError => e
-            [500, { "content-type" => "application/json" }, [{ "error" => e.message, "status" => 500 }.to_json]]
-          end
-        end
-
         def check_authorization(endpoint_class, action_name, env)
           config = endpoint_class.respond_to?(:authorize_config) ? endpoint_class.authorize_config : {}
           return nil if config.empty?
 
-          allowed = config[action_name]
-          return nil unless allowed
-          return nil if allowed.include?("*")
+          rule = config[action_name]
+          return nil unless rule
+
+          allowed = case rule
+            when Array then rule
+            when Hash  then Array(rule[:roles])
+            else return nil
+          end
+
+          return nil if allowed.map(&:to_s).include?("*")
 
           role = env["HTTP_X_USER_ROLE"].to_s
           return nil if allowed.map(&:to_s).include?(role)
@@ -65,13 +60,15 @@ module ActionDispatch
           [403, { "content-type" => "application/json" }, [{ "error" => "Forbidden", "status" => 403 }.to_json]]
         end
 
-        def endpoint_dispatch(endpoint_class, action_name)
+        def endpoint_dispatch(endpoint_class, action_name, transition: nil)
           lambda do |env|
-            forbidden = check_authorization(endpoint_class, action_name, env)
+            auth_key = transition || action_name
+            forbidden = check_authorization(endpoint_class, auth_key, env)
             return forbidden if forbidden
 
+            label = transition ? "#{action_name}.#{transition}" : action_name.to_s
             ActiveSupport::Notifications.instrument("endpoint.process",
-              endpoint: endpoint_class.name, action: action_name) do
+              endpoint: endpoint_class.name, action: label) do
 
               request = ActionDispatch::Request.new(env)
               path_params = env["action_dispatch.request.path_parameters"] || {}
@@ -91,7 +88,11 @@ module ActionDispatch
                 .merge(path_params)
                 .with_indifferent_access
 
-              endpoint_class.new.public_send(action_name, params)
+              if transition
+                endpoint_class.new.transition(params, transition)
+              else
+                endpoint_class.new.public_send(action_name, params)
+              end
             end
           rescue ActiveRecord::RecordNotFound
             [404, { "content-type" => "application/json" }, [{ "error" => "Not found", "status" => 404 }.to_json]]
