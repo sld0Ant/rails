@@ -1,0 +1,272 @@
+{
+  "$schema": "ddd-ir/1.1",
+  "resources": [
+    {
+      "name": "Organization",
+      "plural": "organizations",
+      "path": "/organizations",
+      "attributes": {
+        "id":         { "type": "integer",  "nullable": false, "readonly": true },
+        "name":       { "type": "string",   "nullable": false, "readonly": false },
+        "plan":       { "type": "string",   "nullable": false, "readonly": false },
+        "created_at": { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at": { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["name", "plan"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/organizations" },
+        { "action": "show",    "method": "GET",    "path": "/organizations/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/organizations" },
+        { "action": "update",  "method": "PATCH",  "path": "/organizations/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/organizations/{id}" }
+      ],
+      "validators": [
+        { "type": "presence", "fields": ["name"] },
+        { "type": "inclusion", "fields": ["plan"], "values": ["free", "pro", "enterprise"] }
+      ],
+      "relations": {},
+      "collection": {
+        "sort": ["name", "created_at"],
+        "filter": ["plan"],
+        "search": ["name"],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Instructor",
+      "plural": "instructors",
+      "path": "/instructors",
+      "attributes": {
+        "id":              { "type": "integer",  "nullable": false, "readonly": true },
+        "name":            { "type": "string",   "nullable": false, "readonly": false },
+        "email":           { "type": "string",   "nullable": false, "readonly": false },
+        "bio":             { "type": "text",     "nullable": true,  "readonly": false },
+        "created_at":      { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at":      { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["name", "email", "bio", "organization_id"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/instructors" },
+        { "action": "show",    "method": "GET",    "path": "/instructors/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/instructors" },
+        { "action": "update",  "method": "PATCH",  "path": "/instructors/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/instructors/{id}" }
+      ],
+      "validators": [
+        { "type": "presence", "fields": ["name", "email"] },
+        { "type": "format", "fields": ["email"], "pattern": "email" }
+      ],
+      "relations": {
+        "organization": { "kind": "belongs_to", "resource": "Organization", "required": true }
+      },
+      "collection": {
+        "sort": ["name", "created_at"],
+        "filter": ["organization_id"],
+        "search": ["name", "email"],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Student",
+      "plural": "students",
+      "path": "/students",
+      "attributes": {
+        "id":              { "type": "integer",  "nullable": false, "readonly": true },
+        "name":            { "type": "string",   "nullable": false, "readonly": false },
+        "email":           { "type": "string",   "nullable": false, "readonly": false },
+        "created_at":      { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at":      { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["name", "email", "organization_id"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/students" },
+        { "action": "show",    "method": "GET",    "path": "/students/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/students" },
+        { "action": "update",  "method": "PATCH",  "path": "/students/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/students/{id}" }
+      ],
+      "validators": [
+        { "type": "presence", "fields": ["name", "email"] },
+        { "type": "format", "fields": ["email"], "pattern": "email" }
+      ],
+      "relations": {
+        "organization": { "kind": "belongs_to", "resource": "Organization", "required": true }
+      },
+      "collection": {
+        "sort": ["name", "created_at"],
+        "filter": ["organization_id"],
+        "search": ["name", "email"],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Course",
+      "plural": "courses",
+      "path": "/courses",
+      "attributes": {
+        "id":                { "type": "integer",  "nullable": false, "readonly": true },
+        "title":             { "type": "string",   "nullable": false, "readonly": false },
+        "description":       { "type": "text",     "nullable": true,  "readonly": false },
+        "status":            { "type": "string",   "nullable": false, "readonly": false },
+        "price_cents":       { "type": "integer",  "nullable": false, "readonly": false },
+        "max_students":      { "type": "integer",  "nullable": true,  "readonly": false },
+        "enrollments_count": { "type": "integer",  "nullable": false, "readonly": true },
+        "created_at":        { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at":        { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["title", "description", "status", "price_cents", "max_students", "organization_id", "instructor_id"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/courses" },
+        { "action": "show",    "method": "GET",    "path": "/courses/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/courses" },
+        { "action": "update",  "method": "PATCH",  "path": "/courses/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/courses/{id}" }
+      ],
+      "validators": [
+        { "type": "presence", "fields": ["title"] },
+        { "type": "inclusion", "fields": ["status"], "values": ["draft", "published", "archived"] },
+        { "type": "numericality", "fields": ["price_cents"], "options": { "greater_than_or_equal_to": 0 } }
+      ],
+      "relations": {
+        "organization": { "kind": "belongs_to", "resource": "Organization", "required": true },
+        "instructor":   { "kind": "belongs_to", "resource": "Instructor", "required": true }
+      },
+      "collection": {
+        "sort": ["title", "created_at", "price_cents"],
+        "filter": ["status", "organization_id", "instructor_id"],
+        "search": ["title", "description"],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Lesson",
+      "plural": "lessons",
+      "path": "/lessons",
+      "attributes": {
+        "id":               { "type": "integer",  "nullable": false, "readonly": true },
+        "title":            { "type": "string",   "nullable": false, "readonly": false },
+        "position":         { "type": "integer",  "nullable": false, "readonly": false },
+        "duration_minutes": { "type": "integer",  "nullable": false, "readonly": false },
+        "created_at":       { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at":       { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["title", "position", "duration_minutes", "course_id"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/lessons" },
+        { "action": "show",    "method": "GET",    "path": "/lessons/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/lessons" },
+        { "action": "update",  "method": "PATCH",  "path": "/lessons/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/lessons/{id}" }
+      ],
+      "validators": [
+        { "type": "presence", "fields": ["title"] },
+        { "type": "numericality", "fields": ["position"], "options": { "greater_than_or_equal_to": 1 } },
+        { "type": "numericality", "fields": ["duration_minutes"], "options": { "greater_than": 0 } }
+      ],
+      "relations": {
+        "course": { "kind": "belongs_to", "resource": "Course", "required": true }
+      },
+      "collection": {
+        "sort": ["position", "created_at"],
+        "filter": ["course_id"],
+        "search": ["title"],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Enrollment",
+      "plural": "enrollments",
+      "path": "/enrollments",
+      "attributes": {
+        "id":         { "type": "integer",  "nullable": false, "readonly": true },
+        "status":     { "type": "string",   "nullable": false, "readonly": false },
+        "created_at": { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at": { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["course_id", "student_id", "status"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/enrollments" },
+        { "action": "show",    "method": "GET",    "path": "/enrollments/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/enrollments" },
+        { "action": "destroy", "method": "DELETE",  "path": "/enrollments/{id}" }
+      ],
+      "validators": [
+        { "type": "inclusion", "fields": ["status"], "values": ["pending", "active", "cancelled"] }
+      ],
+      "relations": {
+        "course":  { "kind": "belongs_to", "resource": "Course", "required": true },
+        "student": { "kind": "belongs_to", "resource": "Student", "required": true }
+      },
+      "collection": {
+        "sort": ["created_at"],
+        "filter": ["course_id", "student_id", "status"],
+        "search": [],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Review",
+      "plural": "reviews",
+      "path": "/reviews",
+      "attributes": {
+        "id":         { "type": "integer",  "nullable": false, "readonly": true },
+        "rating":     { "type": "integer",  "nullable": false, "readonly": false },
+        "body":       { "type": "text",     "nullable": true,  "readonly": false },
+        "created_at": { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at": { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["rating", "body", "course_id", "student_id"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/reviews" },
+        { "action": "show",    "method": "GET",    "path": "/reviews/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/reviews" },
+        { "action": "update",  "method": "PATCH",  "path": "/reviews/{id}" },
+        { "action": "destroy", "method": "DELETE",  "path": "/reviews/{id}" }
+      ],
+      "validators": [
+        { "type": "numericality", "fields": ["rating"], "options": { "greater_than_or_equal_to": 1, "less_than_or_equal_to": 5, "only_integer": true } }
+      ],
+      "relations": {
+        "course":  { "kind": "belongs_to", "resource": "Course", "required": true },
+        "student": { "kind": "belongs_to", "resource": "Student", "required": true }
+      },
+      "collection": {
+        "sort": ["rating", "created_at"],
+        "filter": ["course_id", "student_id", "rating"],
+        "search": ["body"],
+        "per_page": 20
+      }
+    },
+    {
+      "name": "Payment",
+      "plural": "payments",
+      "path": "/payments",
+      "attributes": {
+        "id":          { "type": "integer",  "nullable": false, "readonly": true },
+        "amount_cents": { "type": "integer", "nullable": false, "readonly": false },
+        "status":      { "type": "string",   "nullable": false, "readonly": false },
+        "created_at":  { "type": "datetime", "nullable": false, "readonly": true },
+        "updated_at":  { "type": "datetime", "nullable": false, "readonly": true }
+      },
+      "permit": ["amount_cents", "enrollment_id", "status"],
+      "operations": [
+        { "action": "index",   "method": "GET",    "path": "/payments" },
+        { "action": "show",    "method": "GET",    "path": "/payments/{id}" },
+        { "action": "create",  "method": "POST",   "path": "/payments" }
+      ],
+      "validators": [
+        { "type": "numericality", "fields": ["amount_cents"], "options": { "greater_than": 0 } },
+        { "type": "inclusion", "fields": ["status"], "values": ["pending", "confirmed", "refunded"] }
+      ],
+      "relations": {
+        "enrollment": { "kind": "belongs_to", "resource": "Enrollment", "required": true }
+      },
+      "collection": {
+        "sort": ["created_at"],
+        "filter": ["enrollment_id", "status"],
+        "search": [],
+        "per_page": 20
+      }
+    }
+  ]
+}
