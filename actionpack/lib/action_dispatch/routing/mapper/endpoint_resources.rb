@@ -70,28 +70,33 @@ module ActionDispatch
             forbidden = check_authorization(endpoint_class, action_name, env)
             return forbidden if forbidden
 
-            request = ActionDispatch::Request.new(env)
-            path_params = env["action_dispatch.request.path_parameters"] || {}
-            request_params = begin
-              request.request_parameters
-            rescue StandardError
-              {}
-            end
-            query_params = begin
-              request.query_parameters
-            rescue StandardError
-              {}
-            end
+            ActiveSupport::Notifications.instrument("endpoint.process",
+              endpoint: endpoint_class.name, action: action_name) do
 
-            params = query_params
-              .merge(request_params)
-              .merge(path_params)
-              .with_indifferent_access
+              request = ActionDispatch::Request.new(env)
+              path_params = env["action_dispatch.request.path_parameters"] || {}
+              request_params = begin
+                request.request_parameters
+              rescue StandardError
+                {}
+              end
+              query_params = begin
+                request.query_parameters
+              rescue StandardError
+                {}
+              end
 
-            endpoint_class.new.public_send(action_name, params)
+              params = query_params
+                .merge(request_params)
+                .merge(path_params)
+                .with_indifferent_access
+
+              endpoint_class.new.public_send(action_name, params)
+            end
           rescue ActiveRecord::RecordNotFound
             [404, { "content-type" => "application/json" }, [{ "error" => "Not found", "status" => 404 }.to_json]]
           rescue StandardError => e
+            Rails.error.report(e, handled: true) if defined?(Rails.error) && Rails.error.respond_to?(:report)
             [500, { "content-type" => "application/json" }, [{ "error" => e.message, "status" => 500 }.to_json]]
           end
         end

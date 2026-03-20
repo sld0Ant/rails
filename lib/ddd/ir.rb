@@ -37,10 +37,19 @@ module DDD
         raise InvalidIRError, "Missing 'resources' array"
       end
 
+      resource_names = data["resources"].map { |r| r["name"] }.compact.to_set
+
       data["resources"].each_with_index do |resource, i|
         %w[name plural attributes permit operations].each do |key|
           unless resource.key?(key)
             raise InvalidIRError, "Resource ##{i} (#{resource['name'] || 'unnamed'}) missing '#{key}'"
+          end
+        end
+
+        (resource["relations"] || {}).each do |assoc_name, rel|
+          target = rel["resource"]
+          unless resource_names.include?(target)
+            raise InvalidIRError, "Resource '#{resource['name']}' relation '#{assoc_name}' targets '#{target}' which doesn't exist"
           end
         end
       end

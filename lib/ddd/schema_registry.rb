@@ -34,11 +34,13 @@ module DDD
       record_class = Object.const_get("#{entity_name}Record")
       plural = endpoint_class.resource_name.to_s.pluralize
 
+      record_columns = record_class.columns.each_with_object({}) { |c, h| h[c.name] = c.sql_type }
+
       {
         "name" => entity_name,
         "plural" => plural,
         "path" => "/#{plural}",
-        "attributes" => build_attributes(entity_class),
+        "attributes" => build_attributes(entity_class, record_columns),
         "permit" => endpoint_class.permitted_params.map(&:to_s),
         "operations" => build_operations(plural),
         "validators" => build_validators(entity_class),
@@ -55,10 +57,14 @@ module DDD
       nil
     end
 
-    def build_attributes(entity_class)
+    def build_attributes(entity_class, record_columns = {})
       entity_class.attribute_types.each_with_object({}) do |(name, type), hash|
+        ir_type = type.type.to_s
+        sql = record_columns[name]
+        ir_type = "text" if ir_type == "string" && sql&.match?(/\btext\b/i)
+
         hash[name] = {
-          "type" => type.type.to_s,
+          "type" => ir_type,
           "nullable" => !%w[id].include?(name),
           "readonly" => READONLY.include?(name)
         }
