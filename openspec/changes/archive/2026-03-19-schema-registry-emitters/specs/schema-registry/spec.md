@@ -12,7 +12,7 @@
 - **THEN** IR attributes SHALL contain `"area" => {type: "float", ...}` and `"status" => {type: "string", ...}`
 
 #### Scenario: Permit from Endpoint
-- **WHEN** `ParcelsEndpoint` declares `permit: [:registration_number, :area]`
+- **WHEN** `ParcelsEndpoint` declares `pehttps://github.com/sld0Ant/rails/pull/3/conflict?name=openspec%252Fchanges%252Farchive%252F2026-03-19-schema-registry-emitters%252Fdesign.md&base_oid=078dd48391a89d9a0ddc5e57a6911609a778a69b&head_oid=f4a18453639f7835056326515fd7911a83bb3cb8rmit: [:registration_number, :area]`
 - **THEN** IR permit SHALL equal `["registration_number", "area"]`
 
 #### Scenario: Auto-discovery without registration
