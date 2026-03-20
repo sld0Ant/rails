@@ -35,10 +35,10 @@ class ApplicationRepository
   end
 
   def update(id, attributes)
-    entity = entity_class.new(id: id, **attributes)
+    record = record_class.find(id)
+    entity = to_entity_with(record, attributes)
     return entity unless entity.valid?
 
-    record = record_class.find(id)
     record.update!(attributes)
     to_entity(record)
   rescue ActiveRecord::RecordInvalid => e
@@ -52,6 +52,13 @@ class ApplicationRepository
 
   def to_entity(record)
     attrs = record.attributes.symbolize_keys.slice(*entity_class.attribute_names.map(&:to_sym))
+    entity_class.new(**attrs)
+  end
+
+  def to_entity_with(record, overrides)
+    attrs = record.attributes.symbolize_keys
+      .slice(*entity_class.attribute_names.map(&:to_sym))
+      .merge(overrides.symbolize_keys)
     entity_class.new(**attrs)
   end
 

@@ -23,8 +23,8 @@ class ApplicationEntity
     cfg = self.class.transitions_config[name.to_sym]
     return false unless cfg
 
-    current = send(self.class.state_field)
-    current.to_s == cfg[:from].to_s
+    current = send(self.class.state_field).to_s
+    Array(cfg[:from]).map(&:to_s).include?(current)
   end
 
   def transition!(name)

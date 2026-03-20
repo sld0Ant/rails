@@ -108,9 +108,9 @@ class ApplicationEndpoint
     end
 
     if entity_class.respond_to?(:transitions_config) && entity_class.transitions_config.any?
-      state_val = entity_hash[entity_class.state_field]
+      state_val = entity_hash[entity_class.state_field].to_s
       entity_class.transitions_config.each do |t_name, t_cfg|
-        if state_val.to_s == t_cfg[:from].to_s
+        if Array(t_cfg[:from]).map(&:to_s).include?(state_val)
           links[t_name.to_s] = { "href" => "/#{plural_name}/#{entity_hash['id']}/#{t_name}", "method" => "POST" }
         end
       end
